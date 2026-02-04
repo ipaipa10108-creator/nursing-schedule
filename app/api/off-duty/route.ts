@@ -18,6 +18,11 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(year, monthNum - 1, 1, 12, 0, 0);
     const endDate = new Date(year, monthNum, 0, 12, 0, 0);
 
+    // Get ward settings
+    const ward = await prisma.ward.findFirst();
+    const minWorkingDays = ward?.minWorkingDays || 20;
+    const targetWorkingDays = ward?.targetWorkingDays || 22;
+
     // Get all active nurses
     const allNurses = await prisma.nurse.findMany({
       where: { isActive: true },
@@ -57,6 +62,14 @@ export async function GET(request: NextRequest) {
         };
       }).sort((a, b) => a.day - b.day);
 
+      // 判斷狀態
+      let status: 'OK' | 'BELOW_MIN' | 'OVER_TARGET' = 'OK';
+      if (scheduledDays < minWorkingDays) {
+        status = 'BELOW_MIN';
+      } else if (scheduledDays > targetWorkingDays + 2) {
+        status = 'OVER_TARGET';
+      }
+
       return {
         nurse: {
           id: nurse.id,
@@ -68,17 +81,32 @@ export async function GET(request: NextRequest) {
         scheduledDays,
         offDays,
         scheduledDates,
+        status,
       };
     });
 
-    // Sort by off days (descending) - those with most off days first
-    offData.sort((a, b) => b.offDays - a.offDays);
+    // Sort by scheduled days (ascending) - those with fewest scheduled days first
+    offData.sort((a, b) => a.scheduledDays - b.scheduledDays);
+
+    // 統計
+    const stats = {
+      totalNurses: allNurses.length,
+      belowMinCount: offData.filter(d => d.status === 'BELOW_MIN').length,
+      overTargetCount: offData.filter(d => d.status === 'OVER_TARGET').length,
+      okCount: offData.filter(d => d.status === 'OK').length,
+      avgScheduledDays: Math.round((offData.reduce((sum, d) => sum + d.scheduledDays, 0) / allNurses.length) * 10) / 10,
+    };
 
     return NextResponse.json({
       success: true,
       data: offData,
       month: `${year}年${monthNum}月`,
       daysInMonth,
+      settings: {
+        minWorkingDays,
+        targetWorkingDays,
+      },
+      stats,
     });
   } catch (error) {
     console.error('Error fetching off-duty data:', error);

@@ -50,6 +50,10 @@ model Ward {
   minNursesDay    Int    @default(7)     // 日班最低護理師數
   minNursesEvening Int   @default(7)     // 小夜班最低護理師數
   minNursesNight  Int    @default(4)     // 大夜班最低護理師數
+  // 排班公平性設定
+  minWorkingDays  Int    @default(20)    // 每人每月最低工作天數
+  maxWorkingDays  Int    @default(26)    // 每人每月最高工作天數
+  targetWorkingDays Int  @default(22)    // 每人每月目標工作天數
   schedules   Schedule[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

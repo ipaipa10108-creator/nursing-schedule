@@ -16,6 +16,9 @@ export async function GET() {
           minNursesDay: 7,
           minNursesEvening: 7,
           minNursesNight: 4,
+          minWorkingDays: 20,
+          maxWorkingDays: 26,
+          targetWorkingDays: 22,
         },
       });
     }
@@ -30,6 +33,9 @@ export async function GET() {
         minNursesDay: ward.minNursesDay,
         minNursesEvening: ward.minNursesEvening,
         minNursesNight: ward.minNursesNight,
+        minWorkingDays: ward.minWorkingDays,
+        maxWorkingDays: ward.maxWorkingDays,
+        targetWorkingDays: ward.targetWorkingDays,
       },
     });
   } catch (error) {
@@ -44,12 +50,41 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, totalBeds, nursePatientRatio, minNursesDay, minNursesEvening, minNursesNight } = body;
+    const { name, totalBeds, nursePatientRatio, minNursesDay, minNursesEvening, minNursesNight, minWorkingDays, maxWorkingDays, targetWorkingDays } = body;
     
     // Validation
     if (!name || !totalBeds || !nursePatientRatio) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+    
+    // Validate working days constraints
+    if (minWorkingDays !== undefined && (minWorkingDays < 1 || minWorkingDays > 31)) {
+      return NextResponse.json(
+        { success: false, error: '最低工作天數必須在 1-31 之間' },
+        { status: 400 }
+      );
+    }
+    
+    if (maxWorkingDays !== undefined && (maxWorkingDays < 1 || maxWorkingDays > 31)) {
+      return NextResponse.json(
+        { success: false, error: '最高工作天數必須在 1-31 之間' },
+        { status: 400 }
+      );
+    }
+    
+    if (targetWorkingDays !== undefined && (targetWorkingDays < 1 || targetWorkingDays > 31)) {
+      return NextResponse.json(
+        { success: false, error: '目標工作天數必須在 1-31 之間' },
+        { status: 400 }
+      );
+    }
+    
+    if (minWorkingDays && maxWorkingDays && minWorkingDays > maxWorkingDays) {
+      return NextResponse.json(
+        { success: false, error: '最低工作天數不能大於最高工作天數' },
         { status: 400 }
       );
     }
@@ -104,6 +139,11 @@ export async function POST(request: NextRequest) {
     if (minNursesEvening !== undefined) updateData.minNursesEvening = minNursesEvening;
     if (minNursesNight !== undefined) updateData.minNursesNight = minNursesNight;
     
+    // Only update working days constraints if provided
+    if (minWorkingDays !== undefined) updateData.minWorkingDays = minWorkingDays;
+    if (maxWorkingDays !== undefined) updateData.maxWorkingDays = maxWorkingDays;
+    if (targetWorkingDays !== undefined) updateData.targetWorkingDays = targetWorkingDays;
+    
     if (ward) {
       // Update existing ward
       ward = await prisma.ward.update({
@@ -118,6 +158,9 @@ export async function POST(request: NextRequest) {
           minNursesDay: minNursesDay || 7,
           minNursesEvening: minNursesEvening || 7,
           minNursesNight: minNursesNight || 4,
+          minWorkingDays: minWorkingDays || 20,
+          maxWorkingDays: maxWorkingDays || 26,
+          targetWorkingDays: targetWorkingDays || 22,
         },
       });
     }
@@ -132,6 +175,9 @@ export async function POST(request: NextRequest) {
         minNursesDay: ward.minNursesDay,
         minNursesEvening: ward.minNursesEvening,
         minNursesNight: ward.minNursesNight,
+        minWorkingDays: ward.minWorkingDays,
+        maxWorkingDays: ward.maxWorkingDays,
+        targetWorkingDays: ward.targetWorkingDays,
       },
     });
   } catch (error) {

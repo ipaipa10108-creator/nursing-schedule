@@ -43,6 +43,9 @@ async function main() {
       minNursesDay: 7,
       minNursesEvening: 7,
       minNursesNight: 4,
+      minWorkingDays: 20,
+      maxWorkingDays: 26,
+      targetWorkingDays: 22,
     },
   });
   console.log('✓ 建立病房:', ward.name);
