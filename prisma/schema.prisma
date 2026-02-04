@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // 用於 migrations（Vercel Postgres 需要）
+}
+
+// 護理人員資料
+model Nurse {
+  id            String   @id @default(uuid())
+  employeeId    String   @unique
+  name          String
+  email         String   @unique
+  phone         String?
+  level         String   // N0, N1, N2, N3, N4
+  seniority     Float    // 年資（年）
+  specialStatus String   @default("none") // none, pregnant, nursing, restricted
+  joinDate      DateTime
+  isActive      Boolean  @default(true)
+  
+  // 假期餘額
+  annualLeave   Float    @default(0)
+  sickLeave     Float    @default(0)
+  personalLeave Float    @default(0)
+  
+  // 關聯
+  schedules     Schedule[]
+  leaveRequests LeaveRequest[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([level])
+}
+
+
+
+model Ward {
+  id          String   @id @default(uuid())
+  name        String
+  totalBeds   Int      @default(50)
+  nursePatientRatio Float @default(8.0)  // 護病比，如 8 表示 1:8
+  dayShiftRatio   Float  @default(1.0)
+  eveningShiftRatio Float @default(1.0)
+  nightShiftRatio Float @default(1.0)
+  // 各班別最低護理師需求（直接設定人數）
+  minNursesDay    Int    @default(7)     // 日班最低護理師數
+  minNursesEvening Int   @default(7)     // 小夜班最低護理師數
+  minNursesNight  Int    @default(4)     // 大夜班最低護理師數
+  schedules   Schedule[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ShiftType {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  startTime   String
+  endTime     String
+  schedules   Schedule[]
+  createdAt   DateTime @default(now())
+}
+
+model Schedule {
+  id          String   @id @default(uuid())
+  date        DateTime
+  nurseId     String
+  nurse       Nurse    @relation(fields: [nurseId], references: [id])
+  wardId      String
+  ward        Ward     @relation(fields: [wardId], references: [id])
+  shiftTypeId String
+  shiftType   ShiftType @relation(fields: [shiftTypeId], references: [id])
+  status      String   @default("scheduled") // scheduled, confirmed, completed, cancelled
+  violations  String?        // JSON array of violation codes
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([nurseId, date, shiftTypeId])
+  @@index([date])
+  @@index([nurseId, date])
+}
+
+
+
+model LeaveRequest {
+  id          String   @id @default(uuid())
+  nurseId     String
+  nurse       Nurse    @relation(fields: [nurseId], references: [id])
+  leaveType   String   // annual, sick, personal, compensatory, official, maternity, paternity, other
+  startDate   DateTime
+  endDate     DateTime
+  days        Float
+  status      String   @default("pending") // pending, approved, rejected, cancelled
+  reason      String?
+  approvedBy  String?
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+
+model SchedulePeriod {
+  id          String   @id @default(uuid())
+  year        Int
+  month       Int
+  wardId      String
+  status      String   @default("draft") // draft, reviewing, published, archived
+  publishedAt DateTime?
+  publishedBy String?
+  totalShifts Int      @default(0)
+  violations  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([year, month, wardId])
+}
+
+
