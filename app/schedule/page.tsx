@@ -20,9 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar, AlertTriangle, Printer, Home, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar, AlertTriangle, Printer, Home, Users, Sparkles } from 'lucide-react';
 import LeavePriorityScheduler from '@/components/schedule/LeavePriorityScheduler';
 import ThreeShiftScheduler from '@/components/schedule/ThreeShiftScheduler';
+import OptimizationScheduler from '@/components/schedule/OptimizationScheduler';
+
 
 interface Nurse {
   id: string;
@@ -64,10 +66,10 @@ export default function SchedulePage() {
   const [selectedShift, setSelectedShift] = useState('');
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [mode, setMode] = useState<'manual' | 'leave-priority' | 'three-shift'>('manual');
-  const [wardSettings, setWardSettings] = useState<{ 
-    name: string; 
-    totalBeds: number; 
+  const [mode, setMode] = useState<'manual' | 'leave-priority' | 'three-shift' | 'optimization'>('manual');
+  const [wardSettings, setWardSettings] = useState<{
+    name: string;
+    totalBeds: number;
     nursePatientRatio: number;
     minNursesDay: number;
     minNursesEvening: number;
@@ -78,7 +80,7 @@ export default function SchedulePage() {
   const month = currentDate.getMonth();
 
   // Calculate required nurses per shift based on nurse-patient ratio
-  const requiredNursesPerShift = wardSettings 
+  const requiredNursesPerShift = wardSettings
     ? Math.ceil(wardSettings.totalBeds / wardSettings.nursePatientRatio)
     : 7; // Default fallback
 
@@ -90,7 +92,7 @@ export default function SchedulePage() {
     try {
       setLoading(true);
       const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
-      
+
       const [nursesRes, shiftsRes, schedulesRes, wardRes] = await Promise.all([
         fetch('/api/nurses'),
         fetch('/api/shift-types'),
@@ -129,14 +131,14 @@ export default function SchedulePage() {
   function getShiftCoverageStatus(date: number) {
     const daySchedules = getSchedulesForDate(date);
     const shiftTypes = ['D', 'E', 'N'] as const;
-    
-    const status: Record<string, { 
-      count: number; 
-      hasSenior: boolean; 
+
+    const status: Record<string, {
+      count: number;
+      hasSenior: boolean;
       meetsRatio: boolean;
       nurses: string[];
     }> = {};
-    
+
     shiftTypes.forEach(shiftCode => {
       const shiftSchedules = daySchedules.filter(s => s.shiftType.code === shiftCode);
       const count = shiftSchedules.length;
@@ -146,10 +148,10 @@ export default function SchedulePage() {
       });
       const meetsRatio = count >= requiredNursesPerShift;
       const nurses = shiftSchedules.map(s => s.nurse.name);
-      
+
       status[shiftCode] = { count, hasSenior, meetsRatio, nurses };
     });
-    
+
     return status;
   }
 
@@ -158,7 +160,7 @@ export default function SchedulePage() {
 
     // Fix: Use local date components instead of toISOString to avoid timezone issues
     const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
-    
+
     try {
       const response = await fetch('/api/schedules', {
         method: 'POST',
@@ -249,7 +251,7 @@ export default function SchedulePage() {
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         alert(`已清空 ${data.count} 個班表`);
         fetchData();
@@ -265,7 +267,7 @@ export default function SchedulePage() {
   async function handleConfirmSchedule(scheduleId: string, currentStatus: string) {
     const newStatus = currentStatus === 'confirmed' ? 'scheduled' : 'confirmed';
     const actionText = newStatus === 'confirmed' ? '確定' : '取消確定';
-    
+
     try {
       const response = await fetch('/api/schedules', {
         method: 'PUT',
@@ -276,7 +278,7 @@ export default function SchedulePage() {
       const result = await response.json();
 
       if (result.success) {
-        setSchedules(schedules.map(s => 
+        setSchedules(schedules.map(s =>
           s.id === scheduleId ? { ...s, status: newStatus } : s
         ));
         alert(`已${actionText}班表`);
@@ -291,7 +293,7 @@ export default function SchedulePage() {
 
   // Check if a nurse is already scheduled for the selected date
   function isNurseScheduled(nurseId: string, dateStr: string) {
-    const schedule = schedules.find(s => 
+    const schedule = schedules.find(s =>
       s.nurse.id === nurseId && s.date.startsWith(dateStr)
     );
     return schedule;
@@ -325,7 +327,7 @@ export default function SchedulePage() {
               </Button>
             </div>
           </div>
-          
+
           {/* Mode Toggle */}
           <div className="flex gap-2">
             <Button
@@ -359,6 +361,14 @@ export default function SchedulePage() {
               三班模式
             </Button>
             <Button
+              variant={mode === 'optimization' ? 'default' : 'outline'}
+              onClick={() => setMode('optimization')}
+              className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 border-indigo-200"
+            >
+              <Sparkles className="w-4 h-4" />
+              智慧排班
+            </Button>
+            <Button
               variant="outline"
               onClick={() => window.location.href = '/off-duty'}
               className="text-green-600 hover:text-green-700"
@@ -383,7 +393,7 @@ export default function SchedulePage() {
               清空當月
             </Button>
           </div>
-          
+
           {/* Ward Settings Info */}
           {wardSettings && (
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
@@ -423,6 +433,14 @@ export default function SchedulePage() {
             month={month}
             onScheduleCreated={fetchData}
           />
+        ) : mode === 'optimization' ? (
+          <OptimizationScheduler
+            nurses={nurses}
+            shiftTypes={shiftTypes}
+            year={year}
+            month={month}
+            onScheduleCreated={fetchData}
+          />
         ) : mode === 'leave-priority' ? (
           <LeavePriorityScheduler
             nurses={nurses}
@@ -442,358 +460,352 @@ export default function SchedulePage() {
             </div>
 
             <div className="grid grid-cols-7 gap-2">
-          {Array.from({ length: firstDay }).map((_, i) => (
-            <div key={`empty-${i}`} className="h-32" />
-          ))}
-          
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const date = i + 1;
-            const dateSchedules = getSchedulesForDate(date);
-            const isToday = new Date().toDateString() === new Date(year, month, date).toDateString();
-            const coverageStatus = getShiftCoverageStatus(date);
-            
-            // Check for coverage issues
-            const hasCoverageIssues = Object.values(coverageStatus).some(
-              status => !status.meetsRatio || !status.hasSenior
-            );
-            
-            return (
-              <Dialog key={date} open={dialogOpen && selectedDate?.getDate() === date} onOpenChange={(open) => {
-                if (open) {
-                  setSelectedDate(new Date(year, month, date));
-                  setDialogOpen(true);
-                } else {
-                  setDialogOpen(false);
-                }
-              }}>
-                <DialogTrigger asChild>
-                  <Card className={`h-[450px] cursor-pointer hover:shadow-md transition-shadow ${isToday ? 'ring-2 ring-blue-500' : ''} ${hasCoverageIssues ? 'border-red-300' : ''}`}>
-                    <CardHeader className="p-2 pb-0">
-                      <CardTitle className={`text-sm ${isToday ? 'text-blue-600 font-bold' : 'text-gray-700'}`}>
-                        {date}
-                        {hasCoverageIssues && <span className="text-red-500 ml-1">⚠️</span>}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-2 pt-0">
-                      <div className="space-y-1 h-[380px] overflow-y-auto">
-                        {/* Show nurses by shift */}
-                        {['D', 'E', 'N'].map(shiftCode => {
-                          const shiftSchedules = dateSchedules.filter(s => s.shiftType.code === shiftCode);
-                          if (shiftSchedules.length === 0) return null;
-                          
-                          // Check if this shift has N2+ senior nurse
-                          const hasSeniorNurse = shiftSchedules.some(s => 
-                            s.nurse.level === 'N2' || s.nurse.level === 'N3' || s.nurse.level === 'N4'
-                          );
-                          
-                          // Find the leader (highest rank: N4 > N3 > N2)
-                          const seniorNurses = shiftSchedules.filter(s => 
-                            s.nurse.level === 'N2' || s.nurse.level === 'N3' || s.nurse.level === 'N4'
-                          );
-                          
-                          // Sort by level (N4 first, then N3, then N2)
-                          const levelPriority: Record<string, number> = { 'N4': 4, 'N3': 3, 'N2': 2 };
-                          const sortedSeniors = seniorNurses.sort((a, b) => 
-                            (levelPriority[b.nurse.level] || 0) - (levelPriority[a.nurse.level] || 0)
-                          );
-                          
-                          const leader = sortedSeniors[0]; // Highest rank senior
-                          
-                          return (
-                            <div key={shiftCode} className="space-y-0.5">
-                              {/* Shift header with N2+ warning */}
-                              <div className={`text-xs font-bold flex items-center gap-1 ${
-                                shiftCode === 'D' ? 'text-blue-700' : 
-                                shiftCode === 'E' ? 'text-orange-700' : 
-                                'text-purple-700'
-                              }`}>
-                                {shiftCode === 'D' ? '日班' : shiftCode === 'E' ? '小夜班' : '大夜班'} 
-                                <span className="text-gray-500 font-normal">({shiftSchedules.length}人)</span>
-                                {!hasSeniorNurse && (
-                                  <span className="text-red-600 text-[10px] font-bold" title="缺少N2+資深護理師">⚠️缺N2+</span>
-                                )}
-                              </div>
-                              
-                              {/* Leader info (if exists) - 縮小皇冠並對齊 */}
-                              {leader && (
-                                <div className="text-xs bg-yellow-50 p-1 rounded border border-yellow-200 flex items-center justify-between">
-                                  <div className="flex items-center gap-1 flex-1">
-                                    <span className="text-[10px]">👑</span>
-                                    <span className="font-bold truncate">{leader.nurse.name}</span>
-                                    <span className="text-green-700 font-bold text-[10px]">{leader.nurse.level}</span>
+              {Array.from({ length: firstDay }).map((_, i) => (
+                <div key={`empty-${i}`} className="h-32" />
+              ))}
+
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const date = i + 1;
+                const dateSchedules = getSchedulesForDate(date);
+                const isToday = new Date().toDateString() === new Date(year, month, date).toDateString();
+                const coverageStatus = getShiftCoverageStatus(date);
+
+                // Check for coverage issues
+                const hasCoverageIssues = Object.values(coverageStatus).some(
+                  status => !status.meetsRatio || !status.hasSenior
+                );
+
+                return (
+                  <Dialog key={date} open={dialogOpen && selectedDate?.getDate() === date} onOpenChange={(open) => {
+                    if (open) {
+                      setSelectedDate(new Date(year, month, date));
+                      setDialogOpen(true);
+                    } else {
+                      setDialogOpen(false);
+                    }
+                  }}>
+                    <DialogTrigger asChild>
+                      <Card className={`h-[450px] cursor-pointer hover:shadow-md transition-shadow ${isToday ? 'ring-2 ring-blue-500' : ''} ${hasCoverageIssues ? 'border-red-300' : ''}`}>
+                        <CardHeader className="p-2 pb-0">
+                          <CardTitle className={`text-sm ${isToday ? 'text-blue-600 font-bold' : 'text-gray-700'}`}>
+                            {date}
+                            {hasCoverageIssues && <span className="text-red-500 ml-1">⚠️</span>}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="space-y-1 h-[380px] overflow-y-auto">
+                            {/* Show nurses by shift */}
+                            {['D', 'E', 'N'].map(shiftCode => {
+                              const shiftSchedules = dateSchedules.filter(s => s.shiftType.code === shiftCode);
+                              if (shiftSchedules.length === 0) return null;
+
+                              // Check if this shift has N2+ senior nurse
+                              const hasSeniorNurse = shiftSchedules.some(s =>
+                                s.nurse.level === 'N2' || s.nurse.level === 'N3' || s.nurse.level === 'N4'
+                              );
+
+                              // Find the leader (highest rank: N4 > N3 > N2)
+                              const seniorNurses = shiftSchedules.filter(s =>
+                                s.nurse.level === 'N2' || s.nurse.level === 'N3' || s.nurse.level === 'N4'
+                              );
+
+                              // Sort by level (N4 first, then N3, then N2)
+                              const levelPriority: Record<string, number> = { 'N4': 4, 'N3': 3, 'N2': 2 };
+                              const sortedSeniors = seniorNurses.sort((a, b) =>
+                                (levelPriority[b.nurse.level] || 0) - (levelPriority[a.nurse.level] || 0)
+                              );
+
+                              const leader = sortedSeniors[0]; // Highest rank senior
+
+                              return (
+                                <div key={shiftCode} className="space-y-0.5">
+                                  {/* Shift header with N2+ warning */}
+                                  <div className={`text-xs font-bold flex items-center gap-1 ${shiftCode === 'D' ? 'text-blue-700' :
+                                      shiftCode === 'E' ? 'text-orange-700' :
+                                        'text-purple-700'
+                                    }`}>
+                                    {shiftCode === 'D' ? '日班' : shiftCode === 'E' ? '小夜班' : '大夜班'}
+                                    <span className="text-gray-500 font-normal">({shiftSchedules.length}人)</span>
+                                    {!hasSeniorNurse && (
+                                      <span className="text-red-600 text-[10px] font-bold" title="缺少N2+資深護理師">⚠️缺N2+</span>
+                                    )}
                                   </div>
-                                  <span className="text-[10px] text-gray-500">(Leader)</span>
-                                </div>
-                              )}
-                              
-                              {/* All nurses list (excluding leader to avoid duplication) - 對齊格式 */}
-                              <div className="space-y-0.5">
-                                {shiftSchedules
-                                  .filter(schedule => !leader || schedule.nurse.id !== leader.nurse.id)
-                                  .map(schedule => {
-                                    const isSenior = schedule.nurse.level === 'N2' || schedule.nurse.level === 'N3' || schedule.nurse.level === 'N4';
-                                    const isOvertime = schedule.notes?.includes('OVERTIME');
-                                    const hasViolations = schedule.violations && JSON.parse(schedule.violations).length > 0;
-                                    // 特殊狀態圖標
-                                    const specialStatusMap: Record<string, string> = {
-                                      'pregnant': '🤰',
-                                      'nursing': '🍼',
-                                      'sick': '🤒',
-                                      'restricted': '⚠️'
-                                    };
-                                    const specialIcon = specialStatusMap[schedule.nurse.specialStatus || ''] || '';
-                                    
-                                    return (
-                                      <div 
-                                        key={schedule.id} 
-                                        className={`text-xs flex items-center justify-between p-0.5 rounded ${
-                                          isOvertime ? 'bg-red-100 text-red-800' : 
-                                          isSenior ? 'bg-green-50' : ''
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-1 flex-1 min-w-0">
-                                          <span className="truncate">{schedule.nurse.name}</span>
-                                          {specialIcon && <span className="text-[10px]">{specialIcon}</span>}
-                                        </div>
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                          <span className="text-[10px] text-gray-500">{schedule.nurse.level}</span>
-                                          {isOvertime && <span className="text-red-600 text-[10px]">🔥</span>}
-                                          {hasViolations && <span className="text-red-500 text-[10px]">⚠️</span>}
-                                        </div>
+
+                                  {/* Leader info (if exists) - 縮小皇冠並對齊 */}
+                                  {leader && (
+                                    <div className="text-xs bg-yellow-50 p-1 rounded border border-yellow-200 flex items-center justify-between">
+                                      <div className="flex items-center gap-1 flex-1">
+                                        <span className="text-[10px]">👑</span>
+                                        <span className="font-bold truncate">{leader.nurse.name}</span>
+                                        <span className="text-green-700 font-bold text-[10px]">{leader.nurse.level}</span>
                                       </div>
-                                    );
-                                  })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {dateSchedules.length === 0 && (
-                          <div className="text-xs text-gray-400 flex items-center justify-center h-full">尚無班表</div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </DialogTrigger>
-                
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>
-                      {year}年{month + 1}月{date}日 排班
-                    </DialogTitle>
-                  </DialogHeader>
-                  
-                  <div className="space-y-4 py-4">
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        選擇護理師
-                        <span className="text-xs text-gray-500 ml-2">
-                          (綠色=未排班，灰色=已排定)
-                        </span>
-                      </label>
-                       <Select value={selectedNurse} onValueChange={setSelectedNurse}>
-                          <SelectTrigger className={selectedNurse && isNurseScheduled(selectedNurse, `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`) ? 'bg-gray-100' : ''}>
-                            <SelectValue placeholder="選擇護理師" />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-80">
-                            {/* Available Nurses Group */}
-                            <SelectGroup>
-                              <SelectLabel className="text-green-700 bg-green-50 font-semibold">
-                                ✓ 可排班人員
-                              </SelectLabel>
-                              {nurses.filter(n => {
-                                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-                                return n.isActive !== false && !isNurseScheduled(n.id, dateStr);
-                              }).map(nurse => (
-                                <SelectItem 
-                                  key={nurse.id} 
-                                  value={nurse.id}
-                                >
-                                  <span className="text-green-700">{nurse.name} ({nurse.level})</span>
-                                  {nurse.specialStatus !== 'none' && (
-                                    <span> 🚫</span>
+                                      <span className="text-[10px] text-gray-500">(Leader)</span>
+                                    </div>
                                   )}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                            
-                            {/* Scheduled Nurses Group */}
-                            {nurses.filter(n => {
-                              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-                              return n.isActive !== false && isNurseScheduled(n.id, dateStr);
-                            }).length > 0 && (
+
+                                  {/* All nurses list (excluding leader to avoid duplication) - 對齊格式 */}
+                                  <div className="space-y-0.5">
+                                    {shiftSchedules
+                                      .filter(schedule => !leader || schedule.nurse.id !== leader.nurse.id)
+                                      .map(schedule => {
+                                        const isSenior = schedule.nurse.level === 'N2' || schedule.nurse.level === 'N3' || schedule.nurse.level === 'N4';
+                                        const isOvertime = schedule.notes?.includes('OVERTIME');
+                                        const hasViolations = schedule.violations && JSON.parse(schedule.violations).length > 0;
+                                        // 特殊狀態圖標
+                                        const specialStatusMap: Record<string, string> = {
+                                          'pregnant': '🤰',
+                                          'nursing': '🍼',
+                                          'sick': '🤒',
+                                          'restricted': '⚠️'
+                                        };
+                                        const specialIcon = specialStatusMap[schedule.nurse.specialStatus || ''] || '';
+
+                                        return (
+                                          <div
+                                            key={schedule.id}
+                                            className={`text-xs flex items-center justify-between p-0.5 rounded ${isOvertime ? 'bg-red-100 text-red-800' :
+                                                isSenior ? 'bg-green-50' : ''
+                                              }`}
+                                          >
+                                            <div className="flex items-center gap-1 flex-1 min-w-0">
+                                              <span className="truncate">{schedule.nurse.name}</span>
+                                              {specialIcon && <span className="text-[10px]">{specialIcon}</span>}
+                                            </div>
+                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                              <span className="text-[10px] text-gray-500">{schedule.nurse.level}</span>
+                                              {isOvertime && <span className="text-red-600 text-[10px]">🔥</span>}
+                                              {hasViolations && <span className="text-red-500 text-[10px]">⚠️</span>}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {dateSchedules.length === 0 && (
+                              <div className="text-xs text-gray-400 flex items-center justify-center h-full">尚無班表</div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </DialogTrigger>
+
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>
+                          {year}年{month + 1}月{date}日 排班
+                        </DialogTitle>
+                      </DialogHeader>
+
+                      <div className="space-y-4 py-4">
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">
+                            選擇護理師
+                            <span className="text-xs text-gray-500 ml-2">
+                              (綠色=未排班，灰色=已排定)
+                            </span>
+                          </label>
+                          <Select value={selectedNurse} onValueChange={setSelectedNurse}>
+                            <SelectTrigger className={selectedNurse && isNurseScheduled(selectedNurse, `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`) ? 'bg-gray-100' : ''}>
+                              <SelectValue placeholder="選擇護理師" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-80">
+                              {/* Available Nurses Group */}
                               <SelectGroup>
-                                <SelectLabel className="text-gray-500 bg-gray-100 font-semibold border-t mt-1">
-                                  ✗ 已排定人員
+                                <SelectLabel className="text-green-700 bg-green-50 font-semibold">
+                                  ✓ 可排班人員
                                 </SelectLabel>
                                 {nurses.filter(n => {
                                   const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-                                  return n.isActive !== false && isNurseScheduled(n.id, dateStr);
-                                }).map(nurse => {
-                                  const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-                                  const existingSchedule = isNurseScheduled(nurse.id, dateStr);
-                                  return (
-                                    <SelectItem 
-                                      key={nurse.id} 
-                                      value={nurse.id}
-                                      disabled
-                                      className="opacity-50"
-                                    >
-                                      <span className="line-through text-gray-500">{nurse.name} ({nurse.level})</span>
-                                      {existingSchedule && (
-                                        <span className="text-orange-600 text-xs"> (已排定-{existingSchedule.shiftType.name})</span>
-                                      )}
-                                    </SelectItem>
-                                  );
-                                })}
+                                  return n.isActive !== false && !isNurseScheduled(n.id, dateStr);
+                                }).map(nurse => (
+                                  <SelectItem
+                                    key={nurse.id}
+                                    value={nurse.id}
+                                  >
+                                    <span className="text-green-700">{nurse.name} ({nurse.level})</span>
+                                    {nurse.specialStatus !== 'none' && (
+                                      <span> 🚫</span>
+                                    )}
+                                  </SelectItem>
+                                ))}
                               </SelectGroup>
-                            )}
-                          </SelectContent>
-                        </Select>
-                    </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">選擇班別</label>
-                      <Select value={selectedShift} onValueChange={setSelectedShift}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="選擇班別" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {shiftTypes.map(shift => (
-                            <SelectItem key={shift.id} value={shift.id}>
-                              {shift.name} ({shift.startTime}-{shift.endTime})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
 
-                    {/* 护病比信息 */}
-                    {wardSettings && (
-                      <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                        <h4 className="text-sm font-medium text-blue-800 mb-2">📊 護病比狀態（實際入住約 {Math.floor(wardSettings.totalBeds * 0.6)} 人）</h4>
-                        <div className="space-y-1 text-xs">
-                          {['D', 'E', 'N'].map(shiftCode => {
-                            const shiftSchedules = dateSchedules.filter(s => s.shiftType.code === shiftCode);
-                            const count = shiftSchedules.length;
-                            const target = shiftCode === 'D' ? wardSettings.minNursesDay : 
-                                          shiftCode === 'E' ? wardSettings.minNursesEvening : 
-                                          wardSettings.minNursesNight;
-                            const occupancy = Math.floor(wardSettings.totalBeds * 0.6);
-                            const actualRatio = count > 0 ? (occupancy / count).toFixed(2) : '0';
-                            const targetRatio = (occupancy / target).toFixed(2);
-                            const hasSenior = shiftSchedules.some(s => 
-                              s.nurse.level === 'N2' || s.nurse.level === 'N3' || s.nurse.level === 'N4'
-                            );
-                            const overtimeCount = shiftSchedules.filter(s => s.notes?.includes('OVERTIME')).length;
-                            
-                            return (
-                              <div key={shiftCode} className={`flex items-center justify-between p-1.5 rounded ${
-                                count < target ? 'bg-red-100' : 'bg-white'
-                              }`}>
-                                <span className={`font-medium ${
-                                  shiftCode === 'D' ? 'text-blue-600' : 
-                                  shiftCode === 'E' ? 'text-orange-600' : 
-                                  'text-purple-600'
-                                }`}>
-                                  {shiftCode === 'D' ? '日班' : shiftCode === 'E' ? '小夜班' : '大夜班'}
-                                </span>
-                                <span className="text-gray-600">
-                                  {count}/{target}人
-                                </span>
-                                <span className={`font-medium ${
-                                  Number(actualRatio) > Number(targetRatio) ? 'text-red-600' : 'text-green-600'
-                                }`}>
-                                  實際1:{actualRatio}
-                                </span>
-                                <span className="text-gray-400">
-                                  (目標1:{targetRatio})
-                                </span>
-                                {!hasSenior && (
-                                  <span className="text-red-600" title="缺N2+">👨‍⚕️❌</span>
+                              {/* Scheduled Nurses Group */}
+                              {nurses.filter(n => {
+                                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                                return n.isActive !== false && isNurseScheduled(n.id, dateStr);
+                              }).length > 0 && (
+                                  <SelectGroup>
+                                    <SelectLabel className="text-gray-500 bg-gray-100 font-semibold border-t mt-1">
+                                      ✗ 已排定人員
+                                    </SelectLabel>
+                                    {nurses.filter(n => {
+                                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                                      return n.isActive !== false && isNurseScheduled(n.id, dateStr);
+                                    }).map(nurse => {
+                                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                                      const existingSchedule = isNurseScheduled(nurse.id, dateStr);
+                                      return (
+                                        <SelectItem
+                                          key={nurse.id}
+                                          value={nurse.id}
+                                          disabled
+                                          className="opacity-50"
+                                        >
+                                          <span className="line-through text-gray-500">{nurse.name} ({nurse.level})</span>
+                                          {existingSchedule && (
+                                            <span className="text-orange-600 text-xs"> (已排定-{existingSchedule.shiftType.name})</span>
+                                          )}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectGroup>
                                 )}
-                                {overtimeCount > 0 && (
-                                  <span className="text-red-600" title={`${overtimeCount}人加班`}>🔥{overtimeCount}</span>
-                                )}
-                              </div>
-                            );
-                          })}
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <p className="text-xs text-gray-600 mt-2">
-                          💡 實際護病比高於目標表示人力不足。紅色背景表示未達目標人數。
-                        </p>
-                      </div>
-                    )}
 
-                    <div className="pt-2">
-                      <h4 className="text-sm font-medium mb-2">👥 當日班表（顯示人名）</h4>
-                      <div className="space-y-2 max-h-40 overflow-y-auto">
-                        {dateSchedules.map(schedule => (
-                          <div key={schedule.id} className={`flex items-center justify-between p-2 rounded ${
-                            schedule.status === 'confirmed' ? 'bg-green-50 border border-green-200' : 'bg-gray-50'
-                          }`}>
-                            <div className="flex items-center gap-2">
-                              <Badge className={getShiftColor(schedule.shiftType.code)}>
-                                {schedule.shiftType.code}
-                              </Badge>
-                              <span className={`text-sm ${schedule.notes?.includes('OVERTIME') ? 'text-red-600 font-medium' : ''}`}>
-                                {schedule.nurse.name}
-                              </span>
-                              {(schedule.nurse.level === 'N2' || schedule.nurse.level === 'N3' || schedule.nurse.level === 'N4') && (
-                                <span className="text-green-600 text-xs" title="N2+資深">👨‍⚕️</span>
-                              )}
-                              {schedule.notes?.includes('OVERTIME') && (
-                                <Badge variant="outline" className="text-xs bg-red-100 text-red-800 border-red-300">
-                                  🔥 加班
-                                </Badge>
-                              )}
-                              {schedule.status === 'confirmed' && (
-                                <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300">
-                                  ✓ 已確定
-                                </Badge>
-                              )}
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">選擇班別</label>
+                          <Select value={selectedShift} onValueChange={setSelectedShift}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="選擇班別" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {shiftTypes.map(shift => (
+                                <SelectItem key={shift.id} value={shift.id}>
+                                  {shift.name} ({shift.startTime}-{shift.endTime})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* 护病比信息 */}
+                        {wardSettings && (
+                          <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                            <h4 className="text-sm font-medium text-blue-800 mb-2">📊 護病比狀態（實際入住約 {Math.floor(wardSettings.totalBeds * 0.6)} 人）</h4>
+                            <div className="space-y-1 text-xs">
+                              {['D', 'E', 'N'].map(shiftCode => {
+                                const shiftSchedules = dateSchedules.filter(s => s.shiftType.code === shiftCode);
+                                const count = shiftSchedules.length;
+                                const target = shiftCode === 'D' ? wardSettings.minNursesDay :
+                                  shiftCode === 'E' ? wardSettings.minNursesEvening :
+                                    wardSettings.minNursesNight;
+                                const occupancy = Math.floor(wardSettings.totalBeds * 0.6);
+                                const actualRatio = count > 0 ? (occupancy / count).toFixed(2) : '0';
+                                const targetRatio = (occupancy / target).toFixed(2);
+                                const hasSenior = shiftSchedules.some(s =>
+                                  s.nurse.level === 'N2' || s.nurse.level === 'N3' || s.nurse.level === 'N4'
+                                );
+                                const overtimeCount = shiftSchedules.filter(s => s.notes?.includes('OVERTIME')).length;
+
+                                return (
+                                  <div key={shiftCode} className={`flex items-center justify-between p-1.5 rounded ${count < target ? 'bg-red-100' : 'bg-white'
+                                    }`}>
+                                    <span className={`font-medium ${shiftCode === 'D' ? 'text-blue-600' :
+                                        shiftCode === 'E' ? 'text-orange-600' :
+                                          'text-purple-600'
+                                      }`}>
+                                      {shiftCode === 'D' ? '日班' : shiftCode === 'E' ? '小夜班' : '大夜班'}
+                                    </span>
+                                    <span className="text-gray-600">
+                                      {count}/{target}人
+                                    </span>
+                                    <span className={`font-medium ${Number(actualRatio) > Number(targetRatio) ? 'text-red-600' : 'text-green-600'
+                                      }`}>
+                                      實際1:{actualRatio}
+                                    </span>
+                                    <span className="text-gray-400">
+                                      (目標1:{targetRatio})
+                                    </span>
+                                    {!hasSenior && (
+                                      <span className="text-red-600" title="缺N2+">👨‍⚕️❌</span>
+                                    )}
+                                    {overtimeCount > 0 && (
+                                      <span className="text-red-600" title={`${overtimeCount}人加班`}>🔥{overtimeCount}</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                            <div className="flex gap-1">
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => handleConfirmSchedule(schedule.id, schedule.status)}
-                                className={schedule.status === 'confirmed' ? 'text-orange-600' : 'text-green-600'}
-                              >
-                                {schedule.status === 'confirmed' ? '取消確定' : '確定'}
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => handleDeleteSchedule(schedule.id)}
-                              >
-                                <Trash2 className="w-4 h-4 text-red-500" />
-                              </Button>
-                            </div>
+                            <p className="text-xs text-gray-600 mt-2">
+                              💡 實際護病比高於目標表示人力不足。紅色背景表示未達目標人數。
+                            </p>
                           </div>
-                        ))}
-                        {dateSchedules.length === 0 && (
-                          <p className="text-sm text-gray-500">尚無班表</p>
                         )}
+
+                        <div className="pt-2">
+                          <h4 className="text-sm font-medium mb-2">👥 當日班表（顯示人名）</h4>
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                            {dateSchedules.map(schedule => (
+                              <div key={schedule.id} className={`flex items-center justify-between p-2 rounded ${schedule.status === 'confirmed' ? 'bg-green-50 border border-green-200' : 'bg-gray-50'
+                                }`}>
+                                <div className="flex items-center gap-2">
+                                  <Badge className={getShiftColor(schedule.shiftType.code)}>
+                                    {schedule.shiftType.code}
+                                  </Badge>
+                                  <span className={`text-sm ${schedule.notes?.includes('OVERTIME') ? 'text-red-600 font-medium' : ''}`}>
+                                    {schedule.nurse.name}
+                                  </span>
+                                  {(schedule.nurse.level === 'N2' || schedule.nurse.level === 'N3' || schedule.nurse.level === 'N4') && (
+                                    <span className="text-green-600 text-xs" title="N2+資深">👨‍⚕️</span>
+                                  )}
+                                  {schedule.notes?.includes('OVERTIME') && (
+                                    <Badge variant="outline" className="text-xs bg-red-100 text-red-800 border-red-300">
+                                      🔥 加班
+                                    </Badge>
+                                  )}
+                                  {schedule.status === 'confirmed' && (
+                                    <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300">
+                                      ✓ 已確定
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleConfirmSchedule(schedule.id, schedule.status)}
+                                    className={schedule.status === 'confirmed' ? 'text-orange-600' : 'text-green-600'}
+                                  >
+                                    {schedule.status === 'confirmed' ? '取消確定' : '確定'}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteSchedule(schedule.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4 text-red-500" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            {dateSchedules.length === 0 && (
+                              <p className="text-sm text-gray-500">尚無班表</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                      取消
-                    </Button>
-                    <Button 
-                      onClick={handleCreateSchedule}
-                      disabled={!selectedNurse || !selectedShift}
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      新增班表
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            );
-          })}
+
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                          取消
+                        </Button>
+                        <Button
+                          onClick={handleCreateSchedule}
+                          disabled={!selectedNurse || !selectedShift}
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          新增班表
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                );
+              })}
             </div>
             <div className="mt-8 flex gap-4 text-sm">
               <div className="flex items-center gap-2">

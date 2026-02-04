@@ -1,0 +1,13 @@
+[project]
+name = "nursing-schedule-solver"
+version = "0.1.0"
+description = "CP-SAT solver for nursing schedule optimization"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "ortools>=9.8.0",
+    "pandas>=2.2.0",
+]
+
+[tool.uv]
+line-length = 120
