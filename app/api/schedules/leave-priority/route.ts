@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     
     for (const nurse of allNurses) {
       const pref = nursePreferences?.find((p: NursePreference) => p.nurseId === nurse.id);
-      const leaveDates = new Set(pref?.leaveDates || []);
+      const leaveDates = new Set<number>(pref?.leaveDates || []);
       
       // 計算特殊限制
       const specialConstraints: string[] = [];
