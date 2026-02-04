@@ -1,10 +1,12 @@
 [build]
-  command = "npm install && npx prisma generate && npx prisma migrate deploy && npm run build"
+  command = "npm install && npx prisma generate && DATABASE_URL='file:./dev.db' npx prisma migrate deploy && npm run build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
   NEXT_TELEMETRY_DISABLED = "1"
+  # 為 Prisma Migrate 提供一個本地 SQLite 路徑（實際使用 Turso）
+  DATABASE_URL = "file:./dev.db"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
