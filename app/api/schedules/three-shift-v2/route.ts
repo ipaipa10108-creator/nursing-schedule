@@ -283,7 +283,7 @@ export async function POST(request: NextRequest) {
               // Update counters
               scheduledCount++;
               shiftBreakdown[shiftCode]++;
-              dailyStats[dateStr][shiftCode]++;
+              dailyStats[dateStr][shiftCode as 'D' | 'E' | 'N']++;
               nurseShiftCounts[nurseId]++;
               constraint.assignedShifts.push({ day, shiftCode });
               
@@ -374,7 +374,7 @@ export async function POST(request: NextRequest) {
               
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
               if (dailyStats[dateStr]) {
-                dailyStats[dateStr][shiftCode]++;
+                dailyStats[dateStr][shiftCode as 'D' | 'E' | 'N']++;
               }
               
               daysToAdd--;
