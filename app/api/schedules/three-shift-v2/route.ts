@@ -25,7 +25,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ward = await prisma.ward.findFirst();
+    // 使用 try-catch 來處理可能的資料庫結構問題
+    let ward: any;
+    try {
+      ward = await prisma.ward.findFirst();
+    } catch (dbError) {
+      console.error('Database error fetching ward:', dbError);
+      return NextResponse.json(
+        { success: false, error: 'Database schema error. Please contact administrator.' },
+        { status: 500 }
+      );
+    }
+    
     if (!ward) {
       return NextResponse.json(
         { success: false, error: 'No ward found' },
@@ -33,10 +44,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 從設定讀取工作天數限制
-    const minWorkingDays = ward.minWorkingDays || 20;
-    const maxWorkingDays = ward.maxWorkingDays || 26;
-    const targetWorkingDays = ward.targetWorkingDays || 22;
+    // 從設定讀取工作天數限制（使用可選鏈運算符處理可能的缺少欄位）
+    const minWorkingDays = ward?.minWorkingDays ?? 20;
+    const maxWorkingDays = ward?.maxWorkingDays ?? 26;
+    const targetWorkingDays = ward?.targetWorkingDays ?? 22;
 
     // Get shift types
     const shiftTypes = await prisma.shiftType.findMany();
