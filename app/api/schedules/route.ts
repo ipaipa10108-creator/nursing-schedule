@@ -8,19 +8,20 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');
     const nurseId = searchParams.get('nurseId');
-    
+
     let where: any = {};
-    
+
     if (month) {
       const [year, monthNum] = month.split('-').map(Number);
-      const startDate = new Date(year, monthNum - 1, 1, 12, 0, 0);
-      const endDate = new Date(year, monthNum, 0, 12, 0, 0);
+      const startDate = new Date(year, monthNum - 1, 1, 0, 0, 0); // Start of month 00:00
+      const endDate = new Date(year, monthNum, 0, 23, 59, 59); // End of month 23:59:59
+
       where.date = {
         gte: startDate,
         lte: endDate,
       };
     }
-    
+
     if (nurseId) {
       where.nurseId = nurseId;
     }
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     const actualWardId = ward.id;
 
     // Validate required fields
@@ -116,11 +117,11 @@ export async function POST(request: NextRequest) {
     });
 
     // Check if pregnant/nursing nurse is assigned to night shift
-    if (shiftType?.code === 'N' && 
-        (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing')) {
+    if (shiftType?.code === 'N' &&
+      (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing')) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           error: `Cannot assign night shift to ${nurse.specialStatus === 'pregnant' ? 'pregnant' : 'nursing'} nurse`,
           violation: 'LABOR_LAW_NIGHT_SHIFT_RESTRICTION'
         },
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
 
     // Run labor law validation
     const validation = await validateSchedule(nurseId, scheduleDate, shiftTypeId);
-    
+
     // Check for errors (not just warnings)
     const errors = validation.violations.filter(v => v.type === 'error');
     if (errors.length > 0) {
@@ -168,8 +169,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       data: schedule,
       violations: validation.violations,
     });
