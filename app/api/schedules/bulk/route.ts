@@ -12,6 +12,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: 'Invalid input' }, { status: 400 });
         }
 
+        // Check for ward
+        const ward = await prisma.ward.findFirst();
+        if (!ward) {
+            return NextResponse.json({ success: false, error: 'No ward found, cannot create schedules' }, { status: 400 });
+        }
+
         // Transaction to create multiple schedules
         const created = await prisma.$transaction(
             schedules.map((s: any) =>
@@ -20,6 +26,7 @@ export async function POST(req: NextRequest) {
                         date: new Date(s.date),
                         nurseId: s.nurseId,
                         shiftTypeId: s.shiftTypeId,
+                        wardId: ward.id,
                         status: 'scheduled',
                         // We might want to clear existing schedules for these dates/nurses first?
                         // For now, simple create. Prisma might throw if unique constraint exists.
