@@ -69,13 +69,13 @@ export default function ThreeShiftScheduler({
       const newNurses = currentNurses.includes(nurseId)
         ? currentNurses.filter(id => id !== nurseId)
         : [...currentNurses, nurseId];
-      
+
       return {
         ...prev,
         [shiftCode]: newNurses
       };
     });
-    
+
     // Check for duplicates after update
     setTimeout(() => checkForDuplicates(), 0);
   }
@@ -83,7 +83,7 @@ export default function ThreeShiftScheduler({
   // Check for duplicate nurse selections across shifts
   function checkForDuplicates() {
     const allSelected = new Map<string, string[]>();
-    
+
     Object.entries(selectedNursesByShift).forEach(([shiftCode, nurseIds]) => {
       nurseIds.forEach(nurseId => {
         if (!allSelected.has(nurseId)) {
@@ -92,11 +92,11 @@ export default function ThreeShiftScheduler({
         allSelected.get(nurseId)!.push(shiftCode);
       });
     });
-    
+
     const duplicates = Array.from(allSelected.entries())
       .filter(([_, shifts]) => shifts.length > 1)
       .map(([nurseId, _]) => nurseId);
-    
+
     setDuplicateNurses(duplicates);
   }
 
@@ -108,8 +108,8 @@ export default function ThreeShiftScheduler({
   // Check if a nurse can take a specific shift
   function canNurseTakeShift(nurse: Nurse, shiftCode: string) {
     // Pregnant/nursing nurses cannot take night shift
-    if (shiftCode === 'N' && 
-        (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing')) {
+    if (shiftCode === 'N' &&
+      (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing')) {
       return false;
     }
     return true;
@@ -119,12 +119,12 @@ export default function ThreeShiftScheduler({
   function getNursesInOtherShifts(currentShiftCode: string) {
     const otherShifts = Object.entries(selectedNursesByShift)
       .filter(([code, _]) => code !== currentShiftCode);
-    
+
     const nurseSet = new Set<string>();
     otherShifts.forEach(([_, nurseIds]) => {
       nurseIds.forEach(id => nurseSet.add(id));
     });
-    
+
     return nurseSet;
   }
 
@@ -135,7 +135,7 @@ export default function ThreeShiftScheduler({
       const newDates = currentDates.includes(date)
         ? currentDates.filter(d => d !== date)
         : [...currentDates, date];
-      
+
       return {
         ...prev,
         [nurseId]: newDates
@@ -217,7 +217,7 @@ export default function ThreeShiftScheduler({
       setResult(data);
 
       if (data.success) {
-        alert(`三班排班完成！\n總安排: ${data.scheduledCount} 個班表\n日班: ${data.shiftBreakdown?.D || 0} | 小夜: ${data.shiftBreakdown?.E || 0} | 大夜: ${data.shiftBreakdown?.N || 0}`);
+        alert(`三班排班完成！\n總安排: ${data.summary?.scheduledCount} 個班表\n日班: ${data.summary?.shiftBreakdown?.D || 0} | 小夜: ${data.summary?.shiftBreakdown?.E || 0} | 大夜: ${data.summary?.shiftBreakdown?.N || 0}`);
         onScheduleCreated();
         // Reset form
         setSelectedNursesByShift({ D: [], E: [], N: [] });
@@ -294,7 +294,7 @@ export default function ThreeShiftScheduler({
               <span>同步捲動</span>
             </label>
           </div>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Day Shift Column */}
             <Card className="border-2 border-blue-200">
@@ -308,7 +308,7 @@ export default function ThreeShiftScheduler({
                   </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent 
+              <CardContent
                 ref={dayShiftRef}
                 onScroll={() => handleScroll('D')}
                 className="py-3 space-y-1 max-h-96 overflow-y-auto"
@@ -318,19 +318,18 @@ export default function ThreeShiftScheduler({
                   const otherShifts = getNursesInOtherShifts('D');
                   const isInOtherShift = otherShifts.has(nurse.id);
                   const canTakeShift = canNurseTakeShift(nurse, 'D');
-                  
+
                   return (
-                    <label 
+                    <label
                       key={`D-${nurse.id}`}
-                      className={`flex items-center gap-2 p-2 rounded border transition-colors ${
-                        !canTakeShift 
-                          ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
-                          : isSelected
-                            ? 'bg-blue-50 border-blue-300 cursor-pointer'
-                            : isInOtherShift
-                              ? 'bg-yellow-50 border-yellow-300 cursor-pointer'
-                              : 'bg-white border-gray-200 hover:bg-gray-50 cursor-pointer'
-                      }`}
+                      className={`flex items-center gap-2 p-2 rounded border transition-colors ${!canTakeShift
+                        ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-blue-50 border-blue-300 cursor-pointer'
+                          : isInOtherShift
+                            ? 'bg-yellow-50 border-yellow-300 cursor-pointer'
+                            : 'bg-white border-gray-200 hover:bg-gray-50 cursor-pointer'
+                        }`}
                     >
                       <Checkbox
                         checked={isSelected}
@@ -352,8 +351,8 @@ export default function ThreeShiftScheduler({
                           {nurse.specialStatus !== 'none' && (
                             <span className="ml-1">
                               {nurse.specialStatus === 'pregnant' ? '🤰' :
-                               nurse.specialStatus === 'nursing' ? '🍼' :
-                               nurse.specialStatus === 'sick' ? '🤒' : '⚠️'}
+                                nurse.specialStatus === 'nursing' ? '🍼' :
+                                  nurse.specialStatus === 'sick' ? '🤒' : '⚠️'}
                             </span>
                           )}
                         </div>
@@ -376,7 +375,7 @@ export default function ThreeShiftScheduler({
                   </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent 
+              <CardContent
                 ref={eveningShiftRef}
                 onScroll={() => handleScroll('E')}
                 className="py-3 space-y-1 max-h-96 overflow-y-auto"
@@ -386,19 +385,18 @@ export default function ThreeShiftScheduler({
                   const otherShifts = getNursesInOtherShifts('E');
                   const isInOtherShift = otherShifts.has(nurse.id);
                   const canTakeShift = canNurseTakeShift(nurse, 'E');
-                  
+
                   return (
-                    <label 
+                    <label
                       key={`E-${nurse.id}`}
-                      className={`flex items-center gap-2 p-2 rounded border transition-colors ${
-                        !canTakeShift 
-                          ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
-                          : isSelected
-                            ? 'bg-orange-50 border-orange-300 cursor-pointer'
-                            : isInOtherShift
-                              ? 'bg-yellow-50 border-yellow-300 cursor-pointer'
-                              : 'bg-white border-gray-200 hover:bg-gray-50 cursor-pointer'
-                      }`}
+                      className={`flex items-center gap-2 p-2 rounded border transition-colors ${!canTakeShift
+                        ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-orange-50 border-orange-300 cursor-pointer'
+                          : isInOtherShift
+                            ? 'bg-yellow-50 border-yellow-300 cursor-pointer'
+                            : 'bg-white border-gray-200 hover:bg-gray-50 cursor-pointer'
+                        }`}
                     >
                       <Checkbox
                         checked={isSelected}
@@ -420,8 +418,8 @@ export default function ThreeShiftScheduler({
                           {nurse.specialStatus !== 'none' && (
                             <span className="ml-1">
                               {nurse.specialStatus === 'pregnant' ? '🤰' :
-                               nurse.specialStatus === 'nursing' ? '🍼' :
-                               nurse.specialStatus === 'sick' ? '🤒' : '⚠️'}
+                                nurse.specialStatus === 'nursing' ? '🍼' :
+                                  nurse.specialStatus === 'sick' ? '🤒' : '⚠️'}
                             </span>
                           )}
                         </div>
@@ -444,7 +442,7 @@ export default function ThreeShiftScheduler({
                   </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent 
+              <CardContent
                 ref={nightShiftRef}
                 onScroll={() => handleScroll('N')}
                 className="py-3 space-y-1 max-h-96 overflow-y-auto"
@@ -454,19 +452,18 @@ export default function ThreeShiftScheduler({
                   const otherShifts = getNursesInOtherShifts('N');
                   const isInOtherShift = otherShifts.has(nurse.id);
                   const canTakeShift = canNurseTakeShift(nurse, 'N');
-                  
+
                   return (
-                    <label 
+                    <label
                       key={`N-${nurse.id}`}
-                      className={`flex items-center gap-2 p-2 rounded border transition-colors ${
-                        !canTakeShift 
-                          ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
-                          : isSelected
-                            ? 'bg-purple-50 border-purple-300 cursor-pointer'
-                            : isInOtherShift
-                              ? 'bg-yellow-50 border-yellow-300 cursor-pointer'
-                              : 'bg-white border-gray-200 hover:bg-gray-50 cursor-pointer'
-                      }`}
+                      className={`flex items-center gap-2 p-2 rounded border transition-colors ${!canTakeShift
+                        ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-purple-50 border-purple-300 cursor-pointer'
+                          : isInOtherShift
+                            ? 'bg-yellow-50 border-yellow-300 cursor-pointer'
+                            : 'bg-white border-gray-200 hover:bg-gray-50 cursor-pointer'
+                        }`}
                     >
                       <Checkbox
                         checked={isSelected}
@@ -488,8 +485,8 @@ export default function ThreeShiftScheduler({
                           {nurse.specialStatus !== 'none' && (
                             <span className="ml-1">
                               {nurse.specialStatus === 'pregnant' ? '🤰' :
-                               nurse.specialStatus === 'nursing' ? '🍼' :
-                               nurse.specialStatus === 'sick' ? '🤒' : '⚠️'}
+                                nurse.specialStatus === 'nursing' ? '🍼' :
+                                  nurse.specialStatus === 'sick' ? '🤒' : '⚠️'}
                             </span>
                           )}
                         </div>
@@ -500,7 +497,7 @@ export default function ThreeShiftScheduler({
               </CardContent>
             </Card>
           </div>
-          
+
           <p className="text-xs text-gray-500 mt-2">
             💡 提示：已選其他班別的護理師會標示為「已選他班」(黃色背景)，重複選擇可能導致排班衝突
           </p>
@@ -516,12 +513,12 @@ export default function ThreeShiftScheduler({
             <p className="text-xs text-gray-600 mb-3">
               若有人員有特定假期需求，請先選擇人員，再標記假期日期。系統會自動為其他人員輪班。
             </p>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Nurse Selection */}
               <div>
                 <label className="text-xs text-gray-600 mb-1 block">選擇要標記假期的人員</label>
-                <select 
+                <select
                   value={selectedVacationNurse}
                   onChange={(e) => setSelectedVacationNurse(e.target.value)}
                   className="w-full p-2 border rounded text-sm"
@@ -530,14 +527,14 @@ export default function ThreeShiftScheduler({
                   {allSelectedNurses.map(nurse => (
                     <option key={nurse!.id} value={nurse!.id}>
                       {nurse!.name} ({nurse!.level})
-                      {nurseVacationDates[nurse!.id]?.length > 0 && 
+                      {nurseVacationDates[nurse!.id]?.length > 0 &&
                         ` - 已標記${nurseVacationDates[nurse!.id].length}天`
                       }
                     </option>
                   ))}
                 </select>
               </div>
-              
+
               {/* Calendar for selected nurse */}
               <div className="md:col-span-2">
                 {selectedVacationNurse ? (
@@ -561,18 +558,17 @@ export default function ThreeShiftScheduler({
                         const isVacation = nurseVacationDates[selectedVacationNurse]?.includes(date);
                         const dayOfWeek = new Date(year, month, date).getDay();
                         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                        
+
                         return (
                           <button
                             key={date}
                             onClick={() => toggleVacationDate(selectedVacationNurse, date)}
-                            className={`p-1.5 text-xs rounded border ${
-                              isVacation
-                                ? 'bg-red-100 border-red-300 text-red-700'
-                                : isWeekend
-                                  ? 'bg-gray-100 border-gray-200 text-gray-600'
-                                  : 'bg-white border-gray-200 hover:bg-gray-50'
-                            }`}
+                            className={`p-1.5 text-xs rounded border ${isVacation
+                              ? 'bg-red-100 border-red-300 text-red-700'
+                              : isWeekend
+                                ? 'bg-gray-100 border-gray-200 text-gray-600'
+                                : 'bg-white border-gray-200 hover:bg-gray-50'
+                              }`}
                           >
                             {date}
                           </button>
@@ -582,7 +578,7 @@ export default function ThreeShiftScheduler({
                     {nurseVacationDates[selectedVacationNurse]?.length > 0 && (
                       <p className="text-xs text-gray-500 mt-1">
                         已標記 {nurseVacationDates[selectedVacationNurse].length} 天假期
-                        <button 
+                        <button
                           onClick={() => {
                             setNurseVacationDates(prev => ({ ...prev, [selectedVacationNurse]: [] }));
                           }}
@@ -628,19 +624,19 @@ export default function ThreeShiftScheduler({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div className="bg-white p-2 rounded">
                     <p className="text-gray-600">總安排</p>
-                    <p className="text-2xl font-bold">{result.scheduledCount}</p>
+                    <p className="text-2xl font-bold">{result.summary?.scheduledCount}</p>
                   </div>
                   <div className="bg-white p-2 rounded">
                     <p className="text-gray-600">日班</p>
-                    <p className="text-2xl font-bold text-blue-600">{result.shiftBreakdown?.D || 0}</p>
+                    <p className="text-2xl font-bold text-blue-600">{result.summary?.shiftBreakdown?.D || 0}</p>
                   </div>
                   <div className="bg-white p-2 rounded">
                     <p className="text-gray-600">小夜班</p>
-                    <p className="text-2xl font-bold text-orange-600">{result.shiftBreakdown?.E || 0}</p>
+                    <p className="text-2xl font-bold text-orange-600">{result.summary?.shiftBreakdown?.E || 0}</p>
                   </div>
                   <div className="bg-white p-2 rounded">
                     <p className="text-gray-600">大夜班</p>
-                    <p className="text-2xl font-bold text-purple-600">{result.shiftBreakdown?.N || 0}</p>
+                    <p className="text-2xl font-bold text-purple-600">{result.summary?.shiftBreakdown?.N || 0}</p>
                   </div>
                 </div>
                 {result.dailyStats && (
