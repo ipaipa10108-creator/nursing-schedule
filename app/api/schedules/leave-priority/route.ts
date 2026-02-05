@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    
+
     if (!ward) {
       return NextResponse.json(
         { success: false, error: 'No ward found' },
@@ -89,26 +89,26 @@ export async function POST(request: NextRequest) {
 
     // 步驟1: 收集所有護理師的限制條件
     const nurseConstraints: Map<string, NurseConstraint> = new Map();
-    
+
     for (const nurse of allNurses) {
       const pref = nursePreferences?.find((p: NursePreference) => p.nurseId === nurse.id);
       const leaveDates = new Set<number>(pref?.leaveDates || []);
-      
+
       // 計算特殊限制
       const specialConstraints: string[] = [];
       if (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing') {
         specialConstraints.push('no_night_shift');
       }
-      
+
       // 計算最大可能工作天數（總天數 - 休假天數）
       const maxPossibleDays = daysInMonth - leaveDates.size;
-      
+
       // 計算應該排的目標天數（取 min(maxPossibleDays, targetWorkingDays)）
       const targetDays = Math.min(maxPossibleDays, targetWorkingDays);
-      
+
       // 計算最低應排天數
       const minDays = Math.min(maxPossibleDays, minWorkingDays);
-      
+
       nurseConstraints.set(nurse.id, {
         nurseId: nurse.id,
         nurse,
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
     const nurseShiftDetails: Record<string, { day: number; shiftCode: string }[]> = {};
     const shiftDistribution: Record<string, number> = { D: 0, E: 0, N: 0 };
     const dailyStatus: any[] = [];
-    
+
     // 初始化追蹤
     allNurses.forEach(nurse => {
       nurseShiftCounts[nurse.id] = 0;
@@ -165,13 +165,13 @@ export async function POST(request: NextRequest) {
         const nearbyEnd = new Date(nearbyDate);
         const [endHour, endMin] = nearby.shiftType.endTime.split(':').map(Number);
         nearbyEnd.setHours(endHour, endMin);
-        
+
         const newStart = new Date(date);
         const [startHour, startMin] = shiftType.startTime.split(':').map(Number);
         newStart.setHours(startHour, startMin);
-        
+
         const hoursDiff = (newStart.getTime() - nearbyEnd.getTime()) / (1000 * 60 * 60);
-        
+
         if (Math.abs(hoursDiff) < 24) {
           return false;
         }
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
         for (const shiftCode of ['D', 'E', 'N'] as const) {
           const date = new Date(year, month, day, 12, 0, 0);
           const targetCount = shiftRequirements[shiftCode];
-          
+
           // 取得已排班的護理師
           const existingSchedules = await prisma.schedule.findMany({
             where: {
@@ -209,57 +209,57 @@ export async function POST(request: NextRequest) {
             },
             include: { nurse: true },
           });
-          
+
           let currentCount = existingSchedules.length;
           const assignedNurseIds = new Set(existingSchedules.map(s => s.nurseId));
-          
+
           // 如果需要更多人
           while (currentCount < targetCount) {
             // 找出所有可排的候選人，優先考慮班次較少的
             const candidates: { constraint: NurseConstraint; priority: number }[] = [];
-            
+
             for (const constraint of nurseConstraints.values()) {
               // 跳過已排班的
               if (assignedNurseIds.has(constraint.nurseId)) continue;
-              
+
               // 跳過休假的
               if (constraint.leaveDates.has(day)) continue;
-              
+
               // 跳過不能排此班別的
               if (!canTakeShift(constraint, shiftCode)) continue;
-              
+
               // 跳過已達最大工作天數的
               if (nurseShiftCounts[constraint.nurseId] >= maxWorkingDays) continue;
-              
+
               // 跳過已達目標天數的（但如果其他人更少，還是可以排）
               const currentDays = nurseShiftCounts[constraint.nurseId];
               const isBelowTarget = currentDays < constraint.targetDays;
-              
+
               // 計算優先級：班次越少優先級越高，未達目標的優先
               let priority = 1000 - currentDays * 10;
               if (isBelowTarget) priority += 100;
               if (currentDays < constraint.minDays) priority += 200; // 未達最低天數的優先
-              
+
               candidates.push({ constraint, priority });
             }
-            
+
             // 按優先級排序
             candidates.sort((a, b) => b.priority - a.priority);
-            
+
             let scheduled = false;
-            
+
             for (const { constraint } of candidates) {
               // 檢查24小時間隔
               const has24HourGap = await check24HourInterval(constraint.nurseId, date, shiftCode);
               if (!has24HourGap) continue;
-              
+
               // 驗證勞基法
               const shiftType = shiftTypeMap.get(shiftCode);
               if (!shiftType) continue;
-              
+
               const validation = await validateSchedule(constraint.nurseId, date, shiftType.id);
               if (!validation.valid) continue;
-              
+
               // 建立班表
               try {
                 await prisma.schedule.create({
@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
                     violations: JSON.stringify(validation.violations),
                   },
                 });
-                
+
                 nurseShiftCounts[constraint.nurseId]++;
                 nurseShiftDetails[constraint.nurseId].push({ day, shiftCode });
                 totalScheduled++;
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
                 console.error(`Error creating schedule:`, error);
               }
             }
-            
+
             // 如果沒人能排，跳出
             if (!scheduled) break;
           }
@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
     async function balanceScheduling() {
       // 找出未達最低天數的護理師
       const underMinNurses: { constraint: NurseConstraint; deficit: number }[] = [];
-      
+
       for (const constraint of nurseConstraints.values()) {
         const currentDays = nurseShiftCounts[constraint.nurseId];
         if (currentDays < constraint.minDays) {
@@ -310,28 +310,28 @@ export async function POST(request: NextRequest) {
           });
         }
       }
-      
+
       // 按缺口大小排序，缺口大的優先
       underMinNurses.sort((a, b) => b.deficit - a.deficit);
-      
+
       for (const { constraint, deficit } of underMinNurses) {
         let daysToAdd = deficit;
-        
+
         // 嘗試在未排班的日期中找機會
         for (let day = 1; day <= daysInMonth && daysToAdd > 0; day++) {
           // 跳過休假
           if (constraint.leaveDates.has(day)) continue;
-          
+
           // 檢查是否已排班
           const alreadyScheduled = nurseShiftDetails[constraint.nurseId].some(d => d.day === day);
           if (alreadyScheduled) continue;
-          
+
           const date = new Date(year, month, day, 12, 0, 0);
-          
+
           // 嘗試每個班別
           for (const shiftCode of constraint.preferredShifts) {
             if (!canTakeShift(constraint, shiftCode)) continue;
-            
+
             // 檢查該班別是否已達需求
             const existingCount = await prisma.schedule.count({
               where: {
@@ -339,21 +339,21 @@ export async function POST(request: NextRequest) {
                 shiftType: { code: shiftCode },
               },
             });
-            
+
             // 即使已達需求，為了平衡也可以額外增加（但優先排未達需求的）
             const canAddExtra = existingCount >= shiftRequirements[shiftCode];
-            
+
             // 檢查24小時間隔
             const has24HourGap = await check24HourInterval(constraint.nurseId, date, shiftCode);
             if (!has24HourGap) continue;
-            
+
             // 驗證勞基法
             const shiftType = shiftTypeMap.get(shiftCode);
             if (!shiftType) continue;
-            
+
             const validation = await validateSchedule(constraint.nurseId, date, shiftType.id);
             if (!validation.valid) continue;
-            
+
             // 建立班表
             try {
               await prisma.schedule.create({
@@ -367,7 +367,7 @@ export async function POST(request: NextRequest) {
                   notes: canAddExtra ? 'BALANCE_EXTRA' : undefined,
                 },
               });
-              
+
               nurseShiftCounts[constraint.nurseId]++;
               nurseShiftDetails[constraint.nurseId].push({ day, shiftCode });
               totalScheduled++;
@@ -390,7 +390,7 @@ export async function POST(request: NextRequest) {
       // 找出超過目標天數和未達目標天數的護理師
       const overTarget: { constraint: NurseConstraint; excess: number }[] = [];
       const underTarget: { constraint: NurseConstraint; deficit: number }[] = [];
-      
+
       for (const constraint of nurseConstraints.values()) {
         const currentDays = nurseShiftCounts[constraint.nurseId];
         if (currentDays > constraint.targetDays) {
@@ -399,44 +399,44 @@ export async function POST(request: NextRequest) {
           underTarget.push({ constraint, deficit: constraint.targetDays - currentDays });
         }
       }
-      
+
       // 按差距排序
       overTarget.sort((a, b) => b.excess - a.excess);
       underTarget.sort((a, b) => b.deficit - a.deficit);
-      
+
       // 嘗試從 overTarget 轉移班次到 underTarget
       for (const over of overTarget) {
         const overDetails = nurseShiftDetails[over.constraint.nurseId];
-        
+
         for (let i = overDetails.length - 1; i >= 0 && over.excess > 0; i--) {
           const { day, shiftCode } = overDetails[i];
-          
+
           // 嘗試找一個 underTarget 的護理師來替換
           for (const under of underTarget) {
             if (under.deficit <= 0) continue;
-            
+
             const underConstraint = under.constraint;
-            
+
             // 檢查 under 是否可以在這天這個班別工作
             if (underConstraint.leaveDates.has(day)) continue;
             if (!canTakeShift(underConstraint, shiftCode)) continue;
-            
+
             const alreadyScheduled = nurseShiftDetails[underConstraint.nurseId].some(d => d.day === day);
             if (alreadyScheduled) continue;
-            
+
             const date = new Date(year, month, day, 12, 0, 0);
-            
+
             // 檢查24小時間隔
             const has24HourGap = await check24HourInterval(underConstraint.nurseId, date, shiftCode);
             if (!has24HourGap) continue;
-            
+
             // 驗證勞基法
             const shiftType = shiftTypeMap.get(shiftCode);
             if (!shiftType) continue;
-            
+
             const validation = await validateSchedule(underConstraint.nurseId, date, shiftType.id);
             if (!validation.valid) continue;
-            
+
             // 找到要刪除的 over 的班表
             const overSchedule = await prisma.schedule.findFirst({
               where: {
@@ -445,15 +445,15 @@ export async function POST(request: NextRequest) {
                 shiftType: { code: shiftCode },
               },
             });
-            
+
             if (!overSchedule) continue;
-            
+
             try {
               // 刪除 over 的班表
               await prisma.schedule.delete({
                 where: { id: overSchedule.id },
               });
-              
+
               // 建立 under 的班表
               await prisma.schedule.create({
                 data: {
@@ -466,7 +466,7 @@ export async function POST(request: NextRequest) {
                   notes: 'REDISTRIBUTED',
                 },
               });
-              
+
               // 更新追蹤
               nurseShiftCounts[over.constraint.nurseId]--;
               nurseShiftCounts[underConstraint.nurseId]++;
@@ -474,10 +474,10 @@ export async function POST(request: NextRequest) {
                 d => !(d.day === day && d.shiftCode === shiftCode)
               );
               nurseShiftDetails[underConstraint.nurseId].push({ day, shiftCode });
-              
+
               over.excess--;
               under.deficit--;
-              
+
               break; // 這個班次已轉移，換下一個
             } catch (error) {
               console.error(`Error in redistribution:`, error);
@@ -495,7 +495,7 @@ export async function POST(request: NextRequest) {
     for (const constraint of nurseConstraints.values()) {
       const currentDays = nurseShiftCounts[constraint.nurseId];
       const details = nurseShiftDetails[constraint.nurseId];
-      
+
       finalStats.push({
         nurseId: constraint.nurseId,
         nurseName: constraint.nurse.name,
@@ -506,8 +506,8 @@ export async function POST(request: NextRequest) {
         minDays: constraint.minDays,
         maxPossibleDays: constraint.maxPossibleDays,
         leaveDays: constraint.leaveDates.size,
-        status: currentDays < constraint.minDays ? 'BELOW_MIN' : 
-                currentDays > constraint.targetDays ? 'OVER_TARGET' : 'OK',
+        status: currentDays < constraint.minDays ? 'BELOW_MIN' :
+          currentDays > constraint.targetDays ? 'OVER_TARGET' : 'OK',
         shiftDetails: details,
       });
     }
@@ -524,7 +524,7 @@ export async function POST(request: NextRequest) {
     // 生成每日狀態
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day, 12, 0, 0);
-      
+
       for (const shiftCode of ['D', 'E', 'N'] as const) {
         const schedules = await prisma.schedule.findMany({
           where: {
@@ -533,11 +533,11 @@ export async function POST(request: NextRequest) {
           },
           include: { nurse: true },
         });
-        
-        const hasSenior = schedules.some(s => 
+
+        const hasSenior = schedules.some(s =>
           s.nurse.level === 'N2' || s.nurse.level === 'N3' || s.nurse.level === 'N4'
         );
-        
+
         dailyStatus.push({
           date: day,
           shiftCode,
@@ -564,6 +564,9 @@ export async function POST(request: NextRequest) {
           maxWorkingDays,
           targetWorkingDays,
           daysInMonth,
+          minNursesDay: shiftRequirements['D'],
+          minNursesEvening: shiftRequirements['E'],
+          minNursesNight: shiftRequirements['N'],
         },
       },
       nurseStats: finalStats,
