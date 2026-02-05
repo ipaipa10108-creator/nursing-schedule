@@ -68,7 +68,7 @@ export default function LeavePriorityScheduler({
   const [result, setResult] = useState<any>(null);
   const [existingSchedules, setExistingSchedules] = useState<ExistingSchedule[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
-  
+
   // New scheduling options
   const [schedulingMode, setSchedulingMode] = useState<'single' | 'auto'>('single'); // 'single' for specific nurse, 'auto' for all nurses
   const [priorityOption, setPriorityOption] = useState<'fixed' | 'rotating'>('fixed'); // 'fixed' = 固定班, 'rotating' = 花班
@@ -90,13 +90,13 @@ export default function LeavePriorityScheduler({
 
   async function fetchExistingSchedules() {
     if (!selectedNurse) return;
-    
+
     setLoadingSchedules(true);
     try {
       const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
       const response = await fetch(`/api/schedules?month=${monthStr}`);
       const data = await response.json();
-      
+
       if (data.success) {
         setExistingSchedules(data.data);
       }
@@ -126,7 +126,7 @@ export default function LeavePriorityScheduler({
       alert('請先選擇護理師');
       return;
     }
-    
+
     if (!confirm(`確定要清空 ${selectedNurseData?.name} ${year}年${month + 1}月的所有班表嗎？`)) {
       return;
     }
@@ -139,7 +139,7 @@ export default function LeavePriorityScheduler({
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         alert(`已清空 ${data.count} 個班表`);
         setExistingSchedules([]);
@@ -159,7 +159,7 @@ export default function LeavePriorityScheduler({
     setLoading(true);
     try {
       let response;
-      
+
       if (schedulingMode === 'single' && selectedNurse) {
         // Single nurse mode - use existing API
         response = await fetch('/api/schedules/auto', {
@@ -195,9 +195,9 @@ export default function LeavePriorityScheduler({
       setResult(data);
 
       if (data.success) {
-        const msg = schedulingMode === 'single' 
+        const msg = schedulingMode === 'single'
           ? `自動排班完成！共建立 ${data.created} 個班表`
-          : `全自動排班完成！\n總計: ${data.totalScheduled} 個班表\n已安排護理師: ${data.nurseCount} 人\n符合N2要求: ${data.meetsN2Requirement ? '是' : '否'}`;
+          : `全自動排班完成！\n總計: ${data.summary?.totalScheduled} 個班表\n已安排護理師: ${data.summary?.totalNurses} 人\n符合N2要求: ${data.shiftsWithoutSenior === 0 ? '是' : '否'}`;
         alert(msg);
         onScheduleCreated();
         if (selectedNurse) fetchExistingSchedules();
@@ -213,7 +213,7 @@ export default function LeavePriorityScheduler({
   }
 
   const selectedNurseData = nurses.find(n => n.id === selectedNurse);
-  
+
   // Calculate leave days excluding weekends
   function countWeekdayLeaves(dates: number[]) {
     return dates.filter(date => {
@@ -221,21 +221,21 @@ export default function LeavePriorityScheduler({
       return dayOfWeek !== 0 && dayOfWeek !== 6;
     }).length;
   }
-  
+
   const weekdayLeaveCount = countWeekdayLeaves(leaveDates);
-  
+
   // Calculate remaining leave
-  const remainingLeave = selectedNurseData 
+  const remainingLeave = selectedNurseData
     ? Math.max(0, selectedNurseData.annualLeave - weekdayLeaveCount)
     : 0;
-  
+
   // Calculate scheduled days for selected nurse
-  const scheduledDaysCount = selectedNurse 
-    ? existingSchedules.filter(s => s.nurse.id === selectedNurse).length 
+  const scheduledDaysCount = selectedNurse
+    ? existingSchedules.filter(s => s.nurse.id === selectedNurse).length
     : 0;
   const overflowLeave = scheduledDaysCount < 8 ? 8 - scheduledDaysCount : 0;
-  
-  const leaveUsagePercent = selectedNurseData 
+
+  const leaveUsagePercent = selectedNurseData
     ? Math.min(100, (weekdayLeaveCount / selectedNurseData.annualLeave) * 100)
     : 0;
 
@@ -380,36 +380,36 @@ export default function LeavePriorityScheduler({
                     </SelectItem>
                   ))}
                 </SelectGroup>
-                
+
                 {/* Scheduled Nurses */}
                 {nurses.filter(n => {
                   if (!n.isActive) return false;
                   const scheduledDays = existingSchedules.filter(s => s.nurse.id === n.id).length;
                   return scheduledDays > 0;
                 }).length > 0 && (
-                  <SelectGroup>
-                    <SelectLabel className="text-gray-500 bg-gray-100 font-semibold border-t mt-1">
-                      ✗ 已有班表人員
-                    </SelectLabel>
-                    {nurses.filter(n => {
-                      if (!n.isActive) return false;
-                      const scheduledDays = existingSchedules.filter(s => s.nurse.id === n.id).length;
-                      return scheduledDays > 0;
-                    }).map(nurse => {
-                      const nurseSchedules = existingSchedules.filter(s => s.nurse.id === nurse.id);
-                      return (
-                        <SelectItem 
-                          key={nurse.id} 
-                          value={nurse.id}
-                          className="opacity-70"
-                        >
-                          <span className="text-gray-500">{nurse.name} ({nurse.level})</span>
-                          <span className="text-orange-600 text-xs"> (已排{nurseSchedules.length}天班)</span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectGroup>
-                )}
+                    <SelectGroup>
+                      <SelectLabel className="text-gray-500 bg-gray-100 font-semibold border-t mt-1">
+                        ✗ 已有班表人員
+                      </SelectLabel>
+                      {nurses.filter(n => {
+                        if (!n.isActive) return false;
+                        const scheduledDays = existingSchedules.filter(s => s.nurse.id === n.id).length;
+                        return scheduledDays > 0;
+                      }).map(nurse => {
+                        const nurseSchedules = existingSchedules.filter(s => s.nurse.id === nurse.id);
+                        return (
+                          <SelectItem
+                            key={nurse.id}
+                            value={nurse.id}
+                            className="opacity-70"
+                          >
+                            <span className="text-gray-500">{nurse.name} ({nurse.level})</span>
+                            <span className="text-orange-600 text-xs"> (已排{nurseSchedules.length}天班)</span>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectGroup>
+                  )}
               </SelectContent>
             </Select>
           </div>
@@ -450,7 +450,7 @@ export default function LeavePriorityScheduler({
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Leave usage progress */}
                     <div className="mt-2">
                       <div className="flex items-center justify-between text-xs mb-1">
@@ -458,10 +458,9 @@ export default function LeavePriorityScheduler({
                         <span>{Math.round(leaveUsagePercent)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full transition-all ${
-                            leaveUsagePercent > 100 ? 'bg-red-500' : 'bg-green-500'
-                          }`}
+                        <div
+                          className={`h-2 rounded-full transition-all ${leaveUsagePercent > 100 ? 'bg-red-500' : 'bg-green-500'
+                            }`}
                           style={{ width: `${Math.min(100, leaveUsagePercent)}%` }}
                         />
                       </div>
@@ -492,15 +491,14 @@ export default function LeavePriorityScheduler({
                       <button
                         key={date}
                         onClick={() => toggleLeaveDate(date)}
-                        className={`p-2 text-sm rounded border transition-colors relative ${
-                          isLeave
-                            ? 'bg-red-100 border-red-300 text-red-700'
-                            : isWeekend
-                              ? 'bg-gray-100 border-gray-200 text-gray-500'
-                              : existing
-                                ? 'bg-green-50 border-green-200'
-                                : 'bg-white border-gray-200 hover:bg-gray-50'
-                        }`}
+                        className={`p-2 text-sm rounded border transition-colors relative ${isLeave
+                          ? 'bg-red-100 border-red-300 text-red-700'
+                          : isWeekend
+                            ? 'bg-gray-100 border-gray-200 text-gray-500'
+                            : existing
+                              ? 'bg-green-50 border-green-200'
+                              : 'bg-white border-gray-200 hover:bg-gray-50'
+                          }`}
                       >
                         <div className="font-medium">{date}</div>
                         {isWeekend && <div className="text-xs">休</div>}
@@ -523,7 +521,7 @@ export default function LeavePriorityScheduler({
               <div>
                 <label className="text-sm font-medium mb-2 block">偏好班別</label>
                 <div className="flex gap-4">
-                  {shiftTypes.filter(st => st.code !== 'N' || 
+                  {shiftTypes.filter(st => st.code !== 'N' ||
                     !(selectedNurseData?.specialStatus === 'pregnant' || selectedNurseData?.specialStatus === 'nursing')
                   ).map(shift => (
                     <label key={shift.id} className="flex items-center gap-2 cursor-pointer">
@@ -586,7 +584,7 @@ export default function LeavePriorityScheduler({
               '開始自動排班'
             )}
           </Button>
-          
+
           {schedulingMode === 'single' && selectedNurse && (
             <Button
               onClick={clearAllSchedules}
@@ -623,20 +621,20 @@ export default function LeavePriorityScheduler({
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                       <div className="bg-white p-2 rounded border">
                         <p className="text-gray-600">總班表數</p>
-                        <p className="text-xl font-bold">{result.totalScheduled}</p>
+                        <p className="text-xl font-bold">{result.summary?.totalScheduled}</p>
                       </div>
                       <div className="bg-white p-2 rounded border">
                         <p className="text-gray-600">參與護理師</p>
-                        <p className="text-xl font-bold">{result.nurseCount} 人</p>
+                        <p className="text-xl font-bold">{result.summary?.totalNurses} 人</p>
                       </div>
                       <div className="bg-white p-2 rounded border">
                         <p className="text-gray-600">平均班數</p>
-                        <p className="text-xl font-bold">{result.avgDaysPerNurse?.toFixed(1)} 天</p>
+                        <p className="text-xl font-bold">{result.summary?.avgDaysPerNurse?.toFixed(1)} 天</p>
                       </div>
-                      <div className={`p-2 rounded border ${result.overtimeCount > 0 ? 'bg-red-100 border-red-300' : 'bg-white'}`}>
+                      <div className={`p-2 rounded border ${result.summary?.nursesOverTarget > 0 ? 'bg-red-100 border-red-300' : 'bg-white'}`}>
                         <p className="text-gray-600">加班人數</p>
-                        <p className={`text-xl font-bold ${result.overtimeCount > 0 ? 'text-red-600' : ''}`}>
-                          {result.overtimeCount || 0} 人
+                        <p className={`text-xl font-bold ${result.summary?.nursesOverTarget > 0 ? 'text-red-600' : ''}`}>
+                          {result.summary?.nursesOverTarget || 0} 人
                         </p>
                       </div>
                     </div>
@@ -650,21 +648,21 @@ export default function LeavePriorityScheduler({
                             <p className="text-blue-700 font-medium">日班</p>
                             <p className="text-lg font-bold">1:{result.avgActualRatios.D?.toFixed(2)}</p>
                             <p className="text-xs text-gray-500">
-                              目標: 1:{result.targetRequirements?.D > 0 ? Math.floor(30/result.targetRequirements.D) : 5}
+                              目標: 1:{result.summary?.settings?.minNursesDay > 0 ? Math.floor(30 / result.summary?.settings?.minNursesDay) : 5}
                             </p>
                           </div>
                           <div className="text-center p-2 bg-orange-50 rounded">
                             <p className="text-orange-700 font-medium">小夜班</p>
                             <p className="text-lg font-bold">1:{result.avgActualRatios.E?.toFixed(2)}</p>
                             <p className="text-xs text-gray-500">
-                              目標: 1:{result.targetRequirements?.E > 0 ? Math.floor(30/result.targetRequirements.E) : 5}
+                              目標: 1:{result.summary?.settings?.minNursesEvening > 0 ? Math.floor(30 / result.summary?.settings?.minNursesEvening) : 5}
                             </p>
                           </div>
                           <div className="text-center p-2 bg-purple-50 rounded">
                             <p className="text-purple-700 font-medium">大夜班</p>
                             <p className="text-lg font-bold">1:{result.avgActualRatios.N?.toFixed(2)}</p>
                             <p className="text-xs text-gray-500">
-                              目標: 1:{result.targetRequirements?.N > 0 ? Math.floor(30/result.targetRequirements.N) : 6}
+                              目標: 1:{result.summary?.settings?.minNursesNight > 0 ? Math.floor(30 / result.summary?.settings?.minNursesNight) : 6}
                             </p>
                           </div>
                         </div>
@@ -676,9 +674,9 @@ export default function LeavePriorityScheduler({
                       <div className="bg-white p-3 rounded border">
                         <p className="font-medium mb-2">📅 班別分布</p>
                         <div className="flex gap-4 text-sm">
-                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">日班: {result.shiftDistribution.D} 班次</span>
-                          <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded">小夜班: {result.shiftDistribution.E} 班次</span>
-                          <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded">大夜班: {result.shiftDistribution.N} 班次</span>
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">日班: {result.summary?.shiftDistribution?.D} 班次</span>
+                          <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded">小夜班: {result.summary?.shiftDistribution?.E} 班次</span>
+                          <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded">大夜班: {result.summary?.shiftDistribution?.N} 班次</span>
                         </div>
                       </div>
                     )}
@@ -692,7 +690,7 @@ export default function LeavePriorityScheduler({
                             • {result.daysWithGaps} 天有護病比缺口，總缺 {result.totalGaps} 人次
                           </p>
                         )}
-                        
+
                         {/* 詳細缺 N2+ 信息 */}
                         {result.missingN2Details && result.missingN2Details.length > 0 && (
                           <div className="mt-2">
@@ -703,11 +701,10 @@ export default function LeavePriorityScheduler({
                               {result.missingN2Details.slice(0, 5).map((detail: any, idx: number) => (
                                 <div key={idx} className="flex items-center gap-2 bg-white p-1.5 rounded border border-red-200">
                                   <span className="font-bold text-red-600">{detail.date}日</span>
-                                  <span className={`px-1.5 py-0.5 rounded text-xs ${
-                                    detail.shiftCode === 'D' ? 'bg-blue-100 text-blue-700' :
+                                  <span className={`px-1.5 py-0.5 rounded text-xs ${detail.shiftCode === 'D' ? 'bg-blue-100 text-blue-700' :
                                     detail.shiftCode === 'E' ? 'bg-orange-100 text-orange-700' :
-                                    'bg-purple-100 text-purple-700'
-                                  }`}>
+                                      'bg-purple-100 text-purple-700'
+                                    }`}>
                                     {detail.shiftName}
                                   </span>
                                   <span className="text-gray-500">({detail.timeRange})</span>
@@ -722,7 +719,7 @@ export default function LeavePriorityScheduler({
                             </div>
                           </div>
                         )}
-                        
+
                         {/* 建議調派人員 */}
                         {result.availableSeniors && result.availableSeniors.length > 0 && (
                           <div className="mt-2">
@@ -741,7 +738,7 @@ export default function LeavePriorityScheduler({
                             </div>
                           </div>
                         )}
-                        
+
                         <p className="text-xs text-gray-600 mt-2">
                           建議：優先調派上述資深護理師至缺 N2+ 的班次，或適度調整護病比設定
                         </p>
