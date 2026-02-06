@@ -134,6 +134,7 @@ export default function SchedulePage() {
 
     const status: Record<string, {
       count: number;
+      target: number;
       hasSenior: boolean;
       meetsRatio: boolean;
       nurses: string[];
@@ -142,14 +143,25 @@ export default function SchedulePage() {
     shiftTypes.forEach(shiftCode => {
       const shiftSchedules = daySchedules.filter(s => s.shiftType.code === shiftCode);
       const count = shiftSchedules.length;
+
+      // Determine target based on specific shift settings
+      let target = 0;
+      if (wardSettings) {
+        if (shiftCode === 'D') target = wardSettings.minNursesDay || Math.ceil(wardSettings.totalBeds / wardSettings.nursePatientRatio);
+        else if (shiftCode === 'E') target = wardSettings.minNursesEvening || Math.ceil(wardSettings.totalBeds / wardSettings.nursePatientRatio);
+        else if (shiftCode === 'N') target = wardSettings.minNursesNight || Math.ceil(wardSettings.totalBeds / wardSettings.nursePatientRatio);
+      } else {
+        target = 7; // Absolute fallback
+      }
+
       const hasSenior = shiftSchedules.some(s => {
         const level = s.nurse.level;
         return level === 'N2' || level === 'N3' || level === 'N4';
       });
-      const meetsRatio = count >= requiredNursesPerShift;
+      const meetsRatio = count >= target;
       const nurses = shiftSchedules.map(s => s.nurse.name);
 
-      status[shiftCode] = { count, hasSenior, meetsRatio, nurses };
+      status[shiftCode] = { count, target, hasSenior, meetsRatio, nurses };
     });
 
     return status;
@@ -439,6 +451,7 @@ export default function SchedulePage() {
             shiftTypes={shiftTypes}
             year={year}
             month={month}
+            schedules={schedules}
             onScheduleCreated={fetchData}
           />
         ) : mode === 'leave-priority' ? (
@@ -470,10 +483,21 @@ export default function SchedulePage() {
                 const isToday = new Date().toDateString() === new Date(year, month, date).toDateString();
                 const coverageStatus = getShiftCoverageStatus(date);
 
-                // Check for coverage issues
-                const hasCoverageIssues = Object.values(coverageStatus).some(
-                  status => !status.meetsRatio || !status.hasSenior
-                );
+                // Check for coverage issues and build reason string
+                const issueReasons: string[] = [];
+                const shiftNames: Record<string, string> = { D: '日班', E: '小夜', N: '大夜' };
+
+                Object.entries(coverageStatus).forEach(([code, status]) => {
+                  const name = shiftNames[code] || code;
+                  if (!status.meetsRatio) {
+                    issueReasons.push(`${name}: 人力不足 (${status.count}/${status.target})`);
+                  }
+                  if (!status.hasSenior && status.count > 0) { // Only warn about senior if there are nurses
+                    issueReasons.push(`${name}: 缺資深人員`);
+                  }
+                });
+
+                const hasCoverageIssues = issueReasons.length > 0;
 
                 return (
                   <Dialog key={date} open={dialogOpen && selectedDate?.getDate() === date} onOpenChange={(open) => {
@@ -489,7 +513,14 @@ export default function SchedulePage() {
                         <CardHeader className="p-2 pb-0">
                           <CardTitle className={`text-sm ${isToday ? 'text-blue-600 font-bold' : 'text-gray-700'}`}>
                             {date}
-                            {hasCoverageIssues && <span className="text-red-500 ml-1">⚠️</span>}
+                            {hasCoverageIssues && (
+                              <span
+                                className="text-red-500 ml-1 cursor-help"
+                                title={issueReasons.join('\n')}
+                              >
+                                ⚠️
+                              </span>
+                            )}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
@@ -521,8 +552,8 @@ export default function SchedulePage() {
                                 <div key={shiftCode} className="space-y-0.5">
                                   {/* Shift header with N2+ warning */}
                                   <div className={`text-xs font-bold flex items-center gap-1 ${shiftCode === 'D' ? 'text-blue-700' :
-                                      shiftCode === 'E' ? 'text-orange-700' :
-                                        'text-purple-700'
+                                    shiftCode === 'E' ? 'text-orange-700' :
+                                      'text-purple-700'
                                     }`}>
                                     {shiftCode === 'D' ? '日班' : shiftCode === 'E' ? '小夜班' : '大夜班'}
                                     <span className="text-gray-500 font-normal">({shiftSchedules.length}人)</span>
@@ -564,7 +595,7 @@ export default function SchedulePage() {
                                           <div
                                             key={schedule.id}
                                             className={`text-xs flex items-center justify-between p-0.5 rounded ${isOvertime ? 'bg-red-100 text-red-800' :
-                                                isSenior ? 'bg-green-50' : ''
+                                              isSenior ? 'bg-green-50' : ''
                                               }`}
                                           >
                                             <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -706,8 +737,8 @@ export default function SchedulePage() {
                                   <div key={shiftCode} className={`flex items-center justify-between p-1.5 rounded ${count < target ? 'bg-red-100' : 'bg-white'
                                     }`}>
                                     <span className={`font-medium ${shiftCode === 'D' ? 'text-blue-600' :
-                                        shiftCode === 'E' ? 'text-orange-600' :
-                                          'text-purple-600'
+                                      shiftCode === 'E' ? 'text-orange-600' :
+                                        'text-purple-600'
                                       }`}>
                                       {shiftCode === 'D' ? '日班' : shiftCode === 'E' ? '小夜班' : '大夜班'}
                                     </span>

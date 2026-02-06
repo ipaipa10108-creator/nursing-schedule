@@ -51,6 +51,7 @@ export async function validateSchedule(
   });
 
   if (!shiftType) {
+    console.warn(`[validateSchedule] Shift type not found: ${shiftTypeId}`);
     return { valid: false, violations: [] };
   }
 
@@ -96,8 +97,8 @@ async function checkPregnancyNightShift(
   check: ScheduleCheck,
   nurse: any
 ): Promise<Violation | null> {
-  if (check.shiftCode === 'N' && 
-      (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing')) {
+  if (check.shiftCode === 'N' &&
+    (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing')) {
     return {
       code: 'LABOR_LAW_NIGHT_SHIFT_RESTRICTION',
       type: 'error',
@@ -119,11 +120,11 @@ async function checkSevenDayRestRule(
   date: Date
 ): Promise<Violation[]> {
   const violations: Violation[] = [];
-  
+
   // 檢查未來7天
   const startDate = new Date(date);
   startDate.setDate(date.getDate() - 6); // 往前看6天 + 今天 = 7天
-  
+
   const endDate = new Date(date);
   endDate.setDate(date.getDate() + 6); // 往後看6天
 
@@ -293,15 +294,15 @@ async function checkDailyHoursLimit(
 ): Promise<Violation | null> {
   // 計算本次班次的工時
   let hours = 0;
-  
+
   const start = new Date(`${date.toISOString().split('T')[0]}T${shiftType.startTime}`);
   let end = new Date(`${date.toISOString().split('T')[0]}T${shiftType.endTime}`);
-  
+
   // 如果跨越午夜
   if (end < start) {
     end.setDate(end.getDate() + 1);
   }
-  
+
   hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
 
   // 檢查是否超過12小時

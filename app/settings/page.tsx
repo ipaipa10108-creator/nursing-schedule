@@ -14,6 +14,10 @@ interface WardSettings {
   minNursesDay: number;
   minNursesEvening: number;
   minNursesNight: number;
+  maxNursesDay: number;
+  maxNursesEvening: number;
+  maxNursesNight: number;
+  minWorkingDays: number;
 }
 
 export default function SettingsPage() {
@@ -27,6 +31,10 @@ export default function SettingsPage() {
     minNursesDay: 7,
     minNursesEvening: 7,
     minNursesNight: 4,
+    maxNursesDay: 15,
+    maxNursesEvening: 12,
+    maxNursesNight: 10,
+    minWorkingDays: 20,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [configMode, setConfigMode] = useState<'ratio' | 'manual'>('manual'); // 'ratio' = 使用護病比計算, 'manual' = 直接設定各班人數
@@ -39,7 +47,7 @@ export default function SettingsPage() {
     try {
       const response = await fetch('/api/ward/settings');
       const data = await response.json();
-      
+
       if (data.success && data.ward) {
         setSettings(data.ward);
         setFormData({
@@ -49,6 +57,10 @@ export default function SettingsPage() {
           minNursesDay: data.ward.minNursesDay || 7,
           minNursesEvening: data.ward.minNursesEvening || 7,
           minNursesNight: data.ward.minNursesNight || 4,
+          maxNursesDay: data.ward.maxNursesDay || 15,
+          maxNursesEvening: data.ward.maxNursesEvening || 12,
+          maxNursesNight: data.ward.maxNursesNight || 10,
+          minWorkingDays: data.ward.minWorkingDays || 20,
         });
       }
     } catch (error) {
@@ -61,16 +73,16 @@ export default function SettingsPage() {
   async function handleSave() {
     setSaving(true);
     setMessage(null);
-    
+
     try {
       const response = await fetch('/api/ward/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setSettings(data.ward);
         setMessage({ type: 'success', text: '設定已儲存成功！' });
@@ -172,8 +184,8 @@ export default function SettingsPage() {
                     value={formData.nursePatientRatio}
                     onChange={(e) => {
                       const ratio = parseFloat(e.target.value) || 8;
-                      setFormData({ 
-                        ...formData, 
+                      setFormData({
+                        ...formData,
                         nursePatientRatio: ratio,
                         // Auto-calculate if in ratio mode
                         ...(configMode === 'ratio' && {
@@ -187,6 +199,33 @@ export default function SettingsPage() {
                   />
                   <p className="text-xs text-gray-500 mt-1">表示 1 位護理師照顧 X 位病人</p>
                 </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Working Days Settings Card */}
+        <Card className="bg-green-50 border-green-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-green-800">
+              <Calculator className="w-5 h-5" />
+              工時與排班參數 (Working Days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-lg border border-green-200">
+                <label htmlFor="minWorkingDays" className="text-sm font-medium text-green-800">每月最低上班天數</label>
+                <Input
+                  id="minWorkingDays"
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={formData.minWorkingDays}
+                  onChange={(e) => setFormData({ ...formData, minWorkingDays: parseInt(e.target.value) || 20 })}
+                  className="mt-1"
+                />
+                <p className="text-xs text-gray-500 mt-1">智慧排班將以此為軟限制 (建議值)</p>
               </div>
             </div>
           </CardContent>
@@ -222,7 +261,7 @@ export default function SettingsPage() {
                     }}
                     className="w-4 h-4"
                   />
-                  <span className="text-sm">依護病比自動計算</span>
+                  <span className="text-sm">依護病比自動計算最低標</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -233,60 +272,98 @@ export default function SettingsPage() {
                     onChange={() => setConfigMode('manual')}
                     className="w-4 h-4"
                   />
-                  <span className="text-sm">手動設定各班人數</span>
+                  <span className="text-sm">手動設定人數</span>
                 </label>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white p-4 rounded-lg border-2 border-blue-200">
-                <label className="block text-sm font-medium text-blue-700 mb-2">日班最低人數</label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={formData.minNursesDay}
-                  onChange={(e) => setFormData({ ...formData, minNursesDay: parseInt(e.target.value) || 1 })}
-                  disabled={configMode === 'ratio'}
-                  className={configMode === 'ratio' ? 'bg-gray-100' : ''}
-                />
-                <p className="text-xs text-gray-500 mt-1">07:00-15:00</p>
+              {/* Day Shift */}
+              <div className="bg-white p-4 rounded-lg border-2 border-blue-200 space-y-3">
+                <h3 className="font-bold text-blue-700 border-b border-blue-100 pb-2">日班 (07-15)</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">最低人數 (Min)</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={formData.minNursesDay}
+                    onChange={(e) => setFormData({ ...formData, minNursesDay: parseInt(e.target.value) || 1 })}
+                    disabled={configMode === 'ratio'}
+                    className={configMode === 'ratio' ? 'bg-gray-100' : ''}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">最高人數 (Max)</label>
+                  <Input
+                    type="number"
+                    min={formData.minNursesDay}
+                    max={50}
+                    value={formData.maxNursesDay}
+                    onChange={(e) => setFormData({ ...formData, maxNursesDay: parseInt(e.target.value) || 15 })}
+                  />
+                </div>
               </div>
 
-              <div className="bg-white p-4 rounded-lg border-2 border-orange-200">
-                <label className="block text-sm font-medium text-orange-700 mb-2">小夜班最低人數</label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={formData.minNursesEvening}
-                  onChange={(e) => setFormData({ ...formData, minNursesEvening: parseInt(e.target.value) || 1 })}
-                  disabled={configMode === 'ratio'}
-                  className={configMode === 'ratio' ? 'bg-gray-100' : ''}
-                />
-                <p className="text-xs text-gray-500 mt-1">15:00-23:00</p>
+              {/* Evening Shift */}
+              <div className="bg-white p-4 rounded-lg border-2 border-orange-200 space-y-3">
+                <h3 className="font-bold text-orange-700 border-b border-orange-100 pb-2">小夜班 (15-23)</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">最低人數 (Min)</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={formData.minNursesEvening}
+                    onChange={(e) => setFormData({ ...formData, minNursesEvening: parseInt(e.target.value) || 1 })}
+                    disabled={configMode === 'ratio'}
+                    className={configMode === 'ratio' ? 'bg-gray-100' : ''}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">最高人數 (Max)</label>
+                  <Input
+                    type="number"
+                    min={formData.minNursesEvening}
+                    max={50}
+                    value={formData.maxNursesEvening}
+                    onChange={(e) => setFormData({ ...formData, maxNursesEvening: parseInt(e.target.value) || 12 })}
+                  />
+                </div>
               </div>
 
-              <div className="bg-white p-4 rounded-lg border-2 border-purple-200">
-                <label className="block text-sm font-medium text-purple-700 mb-2">大夜班最低人數</label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={formData.minNursesNight}
-                  onChange={(e) => setFormData({ ...formData, minNursesNight: parseInt(e.target.value) || 1 })}
-                  disabled={configMode === 'ratio'}
-                  className={configMode === 'ratio' ? 'bg-gray-100' : ''}
-                />
-                <p className="text-xs text-gray-500 mt-1">23:00-07:00</p>
+              {/* Night Shift */}
+              <div className="bg-white p-4 rounded-lg border-2 border-purple-200 space-y-3">
+                <h3 className="font-bold text-purple-700 border-b border-purple-100 pb-2">大夜班 (23-07)</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">最低人數 (Min)</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={formData.minNursesNight}
+                    onChange={(e) => setFormData({ ...formData, minNursesNight: parseInt(e.target.value) || 1 })}
+                    disabled={configMode === 'ratio'}
+                    className={configMode === 'ratio' ? 'bg-gray-100' : ''}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">最高人數 (Max)</label>
+                  <Input
+                    type="number"
+                    min={formData.minNursesNight}
+                    max={50}
+                    value={formData.maxNursesNight}
+                    onChange={(e) => setFormData({ ...formData, maxNursesNight: parseInt(e.target.value) || 10 })}
+                  />
+                </div>
               </div>
             </div>
 
             <div className="mt-4 p-3 bg-yellow-100 rounded-lg border border-yellow-300">
               <p className="text-sm text-yellow-800">
-                <strong>系統將依據此設定自動排班：</strong>
-                日班至少 {formData.minNursesDay} 人、小夜班至少 {formData.minNursesEvening} 人、大夜班至少 {formData.minNursesNight} 人
-                （含至少一位N2+資深護理師）
+                <strong>智慧排班參數說明：</strong>
+                系統將產生 介於 「最低」至「最高」人數之間的班表。若人力不足，可能會低於最高人數，但絕不錯低於最低人數。
               </p>
             </div>
           </CardContent>
@@ -402,6 +479,6 @@ export default function SettingsPage() {
           </Button>
         </div>
       </div>
-    </div>
+    </div >
   );
 }

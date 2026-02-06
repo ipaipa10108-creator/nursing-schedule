@@ -15,8 +15,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     const [year, monthNum] = month.split('-').map(Number);
-    const startDate = new Date(year, monthNum - 1, 1, 12, 0, 0);
-    const endDate = new Date(year, monthNum, 0, 12, 0, 0);
+    // Expand the range to cover the full start and end days
+    const startDate = new Date(year, monthNum - 1, 1, 0, 0, 0);       // Start of month 00:00:00
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59, 999);     // End of month 23:59:59.999
 
     // Build delete condition
     const where: any = {

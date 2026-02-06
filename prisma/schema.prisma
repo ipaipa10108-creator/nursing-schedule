@@ -50,6 +50,11 @@ model Ward {
   minNursesDay    Int    @default(7)     // 日班最低護理師數
   minNursesEvening Int   @default(7)     // 小夜班最低護理師數
   minNursesNight  Int    @default(4)     // 大夜班最低護理師數
+  
+  // 各班別最高護理師需求 (避免人力過剩/均勻分配)
+  maxNursesDay    Int    @default(15)    // 日班最高護理師數
+  maxNursesEvening Int   @default(12)    // 小夜班最高護理師數
+  maxNursesNight  Int    @default(10)    // 大夜班最高護理師數
   // 排班公平性設定
   minWorkingDays  Int    @default(20)    // 每人每月最低工作天數
   maxWorkingDays  Int    @default(26)    // 每人每月最高工作天數
