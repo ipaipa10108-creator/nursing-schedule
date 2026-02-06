@@ -65,38 +65,40 @@ async function migrateTurso() {
 
             const sqlContent = fs.readFileSync(sqlPath, 'utf8');
 
-            // Use executeMultiple for batch execution (splitting by semicolons if needed, 
-            // but client.executeMultiple is preferred if supported, otherwise loop)
-            // Since @libsql/client/web or http might behave differently, let's try executeMultiple
-            try {
-                await client.executeMultiple(sqlContent);
+            // Split statements and execute individually to allow partial success
+            // This is critical when some tables exist (e.g. Nurse) but others (e.g. Ward) do not
+            const statements = sqlContent
+                .split(';')
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
 
-                // Record as applied
+            console.log(`📝 Found ${statements.length} statements in ${folder}`);
+
+            for (const statement of statements) {
+                try {
+                    await client.execute(statement);
+                } catch (e) {
+                    const errorMessage = e.message || '';
+                    if (errorMessage.includes('already exists')) {
+                        console.warn(`⚠️ Warning: Statement failed because object already exists. Continuing...`);
+                        continue;
+                    }
+                    console.error(`❌ Failed to execute statement: ${statement.substring(0, 50)}...`);
+                    throw e;
+                }
+            }
+
+            // Record as applied
+            try {
                 await client.execute({
                     sql: 'INSERT INTO _custom_migrations (name) VALUES (?)',
                     args: [folder],
                 });
-
                 console.log(`✅ Applied: ${folder}`);
                 appliedCount++;
             } catch (e) {
-                // Check for "table already exists" error (common when syncing fresh tracking table with existing DB)
-                const errorMessage = e.message || '';
-                if (errorMessage.includes('table') && errorMessage.includes('already exists')) {
-                    console.warn(`⚠️ Warning: Migration ${folder} failed because a table already exists.`);
-                    console.warn(`👉 Assuming this migration was previously applied. Marking as completed.`);
-
-                    // Record as applied to prevent future retries
-                    await client.execute({
-                        sql: 'INSERT INTO _custom_migrations (name) VALUES (?)',
-                        args: [folder],
-                    });
-                    appliedCount++;
-                    continue;
-                }
-
-                console.error(`❌ Failed to apply ${folder}:`, e);
-                throw e;
+                // Optimization: if insert fails (unlikely unique constraint), just warn
+                console.warn(`Could not record migration ${folder}:`, e.message);
             }
         }
 
