@@ -1,3 +1,6 @@
+import 'dotenv/config';
+console.log('Current directory:', process.cwd());
+console.log('TURSO_DATABASE_URL:', process.env.TURSO_DATABASE_URL ? 'Set' : 'Unset');
 import { prisma } from '../lib/db';
 
 const NurseLevel = {
