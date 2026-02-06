@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
+export const runtime = 'edge';
+
 // GET /api/nurses - List all nurses
 export async function GET() {
   try {
     const nurses = await prisma.nurse.findMany({
       orderBy: { employeeId: 'asc' },
     });
-    
+
     return NextResponse.json({ success: true, data: nurses });
   } catch (error) {
     console.error('Error fetching nurses:', error);
@@ -22,13 +24,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { 
-      employeeId, 
-      name, 
-      email, 
-      phone, 
-      level, 
-      seniority, 
+    const {
+      employeeId,
+      name,
+      email,
+      phone,
+      level,
+      seniority,
       specialStatus,
       annualLeave,
       sickLeave,
@@ -141,10 +143,10 @@ export async function DELETE(request: NextRequest) {
       data: { isActive: false },
     });
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Nurse deactivated successfully',
-      data: nurse 
+      data: nurse
     });
   } catch (error) {
     console.error('Error deleting nurse:', error);

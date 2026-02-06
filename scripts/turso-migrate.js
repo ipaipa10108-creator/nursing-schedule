@@ -117,3 +117,10 @@ async function migrateTurso() {
 }
 
 module.exports = { migrateTurso };
+
+if (require.main === module) {
+    migrateTurso().catch(err => {
+        console.error(err);
+        process.exit(1);
+    });
+}

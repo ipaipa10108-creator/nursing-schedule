@@ -2,19 +2,20 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 export async function GET() {
   try {
     // 檢查資料庫連線
     const ward = await prisma.ward.findFirst();
-    
+
     return NextResponse.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       service: 'nursing-schedule',
       version: '1.0.0',
       database: ward ? 'connected' : 'no_data',
-      uptime: process.uptime(),
+      // uptime: process.uptime(), // Not available in Edge Runtime
     }, {
       status: 200,
       headers: {
