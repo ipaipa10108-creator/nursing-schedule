@@ -80,6 +80,21 @@ async function migrateTurso() {
                 console.log(`✅ Applied: ${folder}`);
                 appliedCount++;
             } catch (e) {
+                // Check for "table already exists" error (common when syncing fresh tracking table with existing DB)
+                const errorMessage = e.message || '';
+                if (errorMessage.includes('table') && errorMessage.includes('already exists')) {
+                    console.warn(`⚠️ Warning: Migration ${folder} failed because a table already exists.`);
+                    console.warn(`👉 Assuming this migration was previously applied. Marking as completed.`);
+
+                    // Record as applied to prevent future retries
+                    await client.execute({
+                        sql: 'INSERT INTO _custom_migrations (name) VALUES (?)',
+                        args: [folder],
+                    });
+                    appliedCount++;
+                    continue;
+                }
+
                 console.error(`❌ Failed to apply ${folder}:`, e);
                 throw e;
             }
