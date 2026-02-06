@@ -1,8 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { spawn } from 'child_process';
-import path from 'path';
 
 export async function POST(request: NextRequest) {
     try {
@@ -83,49 +80,36 @@ export async function POST(request: NextRequest) {
         };
 
         // 4. 呼叫 Python Solver
-        const scriptPath = path.join(process.cwd(), 'solver', 'schedule_optimizer.py');
+        // 4. 呼叫 Python Solver (Vercel Serverless Function)
+        // 在 Vercel 環境中，我們不能使用 spawn，而是透過 HTTP 呼叫 api/optimize_schedule.py
 
-        const runSolver = () => new Promise<any>((resolve, reject) => {
-            // 使用 uv run 確保環境正確
-            const pythonProcess = spawn('uv', ['run', 'python', scriptPath], {
-                cwd: process.cwd(),
-                env: process.env
-            });
+        let solverUrl: string;
+        if (process.env.VERCEL_URL) {
+            solverUrl = `https://${process.env.VERCEL_URL}/api/optimize_schedule`;
+        } else if (process.env.NEXT_PUBLIC_APP_URL) {
+            solverUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/optimize_schedule`;
+        } else {
+            // Fallback for local dev
+            solverUrl = 'http://localhost:3000/api/optimize_schedule';
+        }
 
-            let stdoutData = '';
-            let stderrData = '';
+        console.log(`🚀 Sending optimization request to: ${solverUrl}`);
 
-            pythonProcess.stdout.on('data', (data: Buffer) => {
-                stdoutData += data.toString();
-            });
-
-            pythonProcess.stderr.on('data', (data: Buffer) => {
-                stderrData += data.toString();
-            });
-
-            pythonProcess.on('close', (code: number) => {
-                if (code !== 0) {
-                    reject(new Error(`Solver failed with code ${code}: ${stderrData}`));
-                } else {
-                    try {
-                        const result = JSON.parse(stdoutData.trim());
-                        resolve(result);
-                    } catch (e) {
-                        console.error('Solver output parsing failed. Raw output:', stdoutData); // Important for debugging
-                        reject(new Error(`Invalid JSON output from solver. Raw output length: ${stdoutData.length}. Check server logs for details.`));
-                    }
-                }
-            });
-
-            pythonProcess.stdin.write(JSON.stringify(inputData));
-            pythonProcess.stdin.end();
+        const response = await fetch(solverUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(inputData),
         });
 
-        const result = await runSolver();
-
-        if (!result.success) {
-            return NextResponse.json(result, { status: 422 });
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Solver API failed with status ${response.status}: ${errorText}`);
+            throw new Error(`Solver API failed: ${errorText} (Status ${response.status})`);
         }
+
+        const result = await response.json();
 
         // 5. 儲存結果與資料庫
         if (result.success && Array.isArray(result.schedules) && result.schedules.length > 0) {
