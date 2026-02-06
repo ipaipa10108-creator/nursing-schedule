@@ -75,13 +75,13 @@ export async function POST(request: NextRequest) {
     // For each shift type, try to schedule on available dates
     for (const shiftType of shiftTypes) {
       // Skip night shift for pregnant/nursing nurses
-      if (shiftType.code === 'N' && 
-          (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing')) {
+      if (shiftType.code === 'N' &&
+        (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing')) {
         continue;
       }
 
       let scheduledForThisShift = 0;
-      
+
       for (const { day, date } of availableDates) {
         // Check if already scheduled for this day
         const existing = await prisma.schedule.findFirst({
@@ -120,14 +120,14 @@ export async function POST(request: NextRequest) {
           // Set end time based on shift
           const [endHour, endMin] = nearby.shiftType.endTime.split(':').map(Number);
           nearbyEnd.setHours(endHour, endMin);
-          
+
           const newStart = new Date(date);
           const [startHour, startMin] = shiftType.startTime.split(':').map(Number);
           newStart.setHours(startHour, startMin);
-          
+
           // Calculate hours between end of previous and start of new
           const hoursDiff = (newStart.getTime() - nearbyEnd.getTime()) / (1000 * 60 * 60);
-          
+
           if (hoursDiff < 24 && hoursDiff > -24) {
             within24Hours = true;
             break;
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in three-shift scheduling:', error);
     return NextResponse.json(
-      { success: false, error: 'Three-shift scheduling failed' },
+      { success: false, error: error instanceof Error ? error.message : 'Three-shift scheduling failed', details: String(error) },
       { status: 500 }
     );
   }

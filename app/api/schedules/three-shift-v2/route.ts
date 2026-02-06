@@ -16,9 +16,11 @@ interface NurseConstraint {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { year, month, shiftAssignments, vacationRequests } = body;
+    const { year: rawYear, month: rawMonth, shiftAssignments, vacationRequests } = body;
+    const year = Number(rawYear);
+    const month = Number(rawMonth);
 
-    if (!year || !month || !shiftAssignments) {
+    if (isNaN(year) || isNaN(month) || !shiftAssignments) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    
+
     if (!ward) {
       return NextResponse.json(
         { success: false, error: 'No ward found' },
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest) {
     const shiftTypeMap = new Map(shiftTypes.map(st => [st.code, st]));
 
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
+
     // Build vacation map
     const vacationMap = new Map<string, Set<number>>();
     if (Array.isArray(vacationRequests)) {
@@ -68,32 +70,32 @@ export async function POST(request: NextRequest) {
     // 步驟1: 收集所有護理師的限制條件
     const nurseConstraints: Map<string, NurseConstraint> = new Map();
     const allNurseIds = new Set<string>();
-    
+
     // 收集所有護理師ID
     Object.values(shiftAssignments as Record<string, string[]>).forEach(nurseIds => {
       nurseIds.forEach(id => allNurseIds.add(id));
     });
-    
+
     // 為每個護理師建立限制資料
     for (const nurseId of allNurseIds) {
       const nurse = await prisma.nurse.findUnique({ where: { id: nurseId } });
       if (!nurse || !nurse.isActive) continue;
-      
+
       const leaveDates = vacationMap.get(nurseId) || new Set<number>();
-      
+
       // 計算特殊限制
       const specialConstraints: string[] = [];
       if (nurse.specialStatus === 'pregnant' || nurse.specialStatus === 'nursing') {
         specialConstraints.push('no_night_shift');
       }
-      
+
       // 計算最大可能工作天數
       const maxPossibleDays = daysInMonth - leaveDates.size;
-      
+
       // 計算應該排的目標天數和最低天數
       const targetDays = Math.min(maxPossibleDays, targetWorkingDays);
       const minDays = Math.min(maxPossibleDays, minWorkingDays);
-      
+
       nurseConstraints.set(nurseId, {
         nurseId,
         nurse,
@@ -134,28 +136,28 @@ export async function POST(request: NextRequest) {
       for (const assigned of constraint.assignedShifts) {
         const assignedDate = new Date(year, month, assigned.day);
         const dayDiff = Math.abs(date.getDate() - assigned.day);
-        
+
         if (dayDiff <= 1) {
           // 取得已分配班次的資訊
           const assignedShiftType = shiftTypeMap.get(assigned.shiftCode);
           if (!assignedShiftType) continue;
-          
+
           const assignedDate = new Date(year, month, assigned.day);
           const assignedEnd = new Date(assignedDate);
           const [endHour, endMin] = assignedShiftType.endTime.split(':').map(Number);
           assignedEnd.setHours(endHour, endMin);
-          
+
           const newStart = new Date(date);
           const [startHour, startMin] = shiftType.startTime.split(':').map(Number);
           newStart.setHours(startHour, startMin);
-          
+
           // 如果前一天的班次跨越午夜
           if (assigned.shiftCode === 'N') {
             assignedEnd.setDate(assignedEnd.getDate() + 1);
           }
-          
+
           const hoursDiff = (newStart.getTime() - assignedEnd.getTime()) / (1000 * 60 * 60);
-          
+
           if (Math.abs(hoursDiff) < 24) {
             return false;
           }
@@ -181,18 +183,18 @@ export async function POST(request: NextRequest) {
         const nearbyEnd = new Date(nearbyDate);
         const [endHour, endMin] = nearby.shiftType.endTime.split(':').map(Number);
         nearbyEnd.setHours(endHour, endMin);
-        
+
         const newStart = new Date(date);
         const [startHour, startMin] = shiftType.startTime.split(':').map(Number);
         newStart.setHours(startHour, startMin);
-        
+
         // 如果前一天的班次跨越午夜
         if (nearby.shiftType.code === 'N') {
           nearbyEnd.setDate(nearbyEnd.getDate() + 1);
         }
-        
+
         const hoursDiff = (newStart.getTime() - nearbyEnd.getTime()) / (1000 * 60 * 60);
-        
+
         if (Math.abs(hoursDiff) < 24) {
           return false;
         }
@@ -205,7 +207,7 @@ export async function POST(request: NextRequest) {
     async function firstPassScheduling() {
       // Track nurse rotation index for each shift (round-robin)
       const rotationIndex: Record<string, number> = { D: 0, E: 0, N: 0 };
-      
+
       // Get available nurses for each shift
       const shiftNurses: Record<string, string[]> = {
         D: shiftAssignments.D || [],
@@ -216,13 +218,13 @@ export async function POST(request: NextRequest) {
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day, 12, 0, 0);
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        
+
         dailyStats[dateStr] = { D: 0, E: 0, N: 0 };
 
         for (const shiftCode of ['D', 'E', 'N'] as const) {
           const shiftType = shiftTypeMap.get(shiftCode);
           const availableNurseIds = shiftNurses[shiftCode];
-          
+
           if (!shiftType || !availableNurseIds || availableNurseIds.length === 0) {
             continue;
           }
@@ -234,34 +236,34 @@ export async function POST(request: NextRequest) {
 
           // 建立候選人列表，按班次數量排序
           const candidates: { nurseId: string; constraint: NurseConstraint; priority: number }[] = [];
-          
+
           for (const nurseId of availableNurseIds) {
             const constraint = nurseConstraints.get(nurseId);
             if (!constraint) continue;
-            
+
             // 檢查基本條件
             if (constraint.leaveDates.has(day)) continue;
             if (!canTakeShift(constraint, shiftCode)) continue;
             if (nurseShiftCounts[nurseId] >= maxWorkingDays) continue;
-            
+
             // 檢查是否已排班
             const existing = await prisma.schedule.findFirst({
               where: { nurseId, date },
             });
             if (existing) continue;
-            
+
             // 計算優先級（班次越少優先級越高）
             const currentDays = nurseShiftCounts[nurseId];
             const isBelowTarget = currentDays < constraint.targetDays;
             const isBelowMin = currentDays < constraint.minDays;
-            
+
             let priority = 1000 - currentDays * 10;
             if (isBelowTarget) priority += 100;
             if (isBelowMin) priority += 200;
-            
+
             candidates.push({ nurseId, constraint, priority });
           }
-          
+
           // 按優先級排序
           candidates.sort((a, b) => b.priority - a.priority);
 
@@ -297,7 +299,7 @@ export async function POST(request: NextRequest) {
               dailyStats[dateStr][shiftCode as 'D' | 'E' | 'N']++;
               nurseShiftCounts[nurseId]++;
               constraint.assignedShifts.push({ day, shiftCode });
-              
+
               scheduledForThisShift = true;
 
             } catch (error) {
@@ -315,7 +317,7 @@ export async function POST(request: NextRequest) {
     async function balanceScheduling() {
       // 找出未達最低天數的護理師
       const underMinNurses: { constraint: NurseConstraint; deficit: number }[] = [];
-      
+
       for (const constraint of nurseConstraints.values()) {
         const currentDays = nurseShiftCounts[constraint.nurseId];
         if (currentDays < constraint.minDays) {
@@ -325,14 +327,14 @@ export async function POST(request: NextRequest) {
           });
         }
       }
-      
+
       // 按缺口大小排序
       underMinNurses.sort((a, b) => b.deficit - a.deficit);
-      
+
       // 為每個未達標的護理師嘗試增加班次
       for (const { constraint, deficit } of underMinNurses) {
         let daysToAdd = deficit;
-        
+
         // 找出此護理師可以排的班別
         const availableShiftCodes: string[] = [];
         if (shiftAssignments.D?.includes(constraint.nurseId)) availableShiftCodes.push('D');
@@ -340,30 +342,30 @@ export async function POST(request: NextRequest) {
         if (shiftAssignments.N?.includes(constraint.nurseId) && !constraint.specialConstraints.includes('no_night_shift')) {
           availableShiftCodes.push('N');
         }
-        
+
         for (let day = 1; day <= daysInMonth && daysToAdd > 0; day++) {
           // 跳過休假
           if (constraint.leaveDates.has(day)) continue;
-          
+
           // 檢查是否已排班
           const alreadyScheduled = constraint.assignedShifts.some(s => s.day === day);
           if (alreadyScheduled) continue;
-          
+
           const date = new Date(year, month, day, 12, 0, 0);
-          
+
           // 嘗試每個可用班別
           for (const shiftCode of availableShiftCodes) {
             const shiftType = shiftTypeMap.get(shiftCode);
             if (!shiftType) continue;
-            
+
             // 檢查24小時間隔
             const has24HourGap = await check24HourInterval(constraint, date, shiftCode);
             if (!has24HourGap) continue;
-            
+
             // 驗證勞基法
             const validation = await validateSchedule(constraint.nurseId, date, shiftType.id);
             if (!validation.valid) continue;
-            
+
             try {
               // 建立班表
               await prisma.schedule.create({
@@ -377,17 +379,17 @@ export async function POST(request: NextRequest) {
                   notes: 'BALANCE_EXTRA',
                 },
               });
-              
+
               scheduledCount++;
               shiftBreakdown[shiftCode]++;
               nurseShiftCounts[constraint.nurseId]++;
               constraint.assignedShifts.push({ day, shiftCode });
-              
+
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
               if (dailyStats[dateStr]) {
                 dailyStats[dateStr][shiftCode as 'D' | 'E' | 'N']++;
               }
-              
+
               daysToAdd--;
               break; // 這天已排，換下一天
             } catch (error) {
@@ -406,7 +408,7 @@ export async function POST(request: NextRequest) {
       // 找出超過目標天數和未達目標天數的護理師
       const overTarget: { constraint: NurseConstraint; excess: number }[] = [];
       const underTarget: { constraint: NurseConstraint; deficit: number }[] = [];
-      
+
       for (const constraint of nurseConstraints.values()) {
         const currentDays = nurseShiftCounts[constraint.nurseId];
         if (currentDays > constraint.targetDays) {
@@ -415,51 +417,51 @@ export async function POST(request: NextRequest) {
           underTarget.push({ constraint, deficit: constraint.targetDays - currentDays });
         }
       }
-      
+
       // 按差距排序
       overTarget.sort((a, b) => b.excess - a.excess);
       underTarget.sort((a, b) => b.deficit - a.deficit);
-      
+
       // 嘗試轉移班次
       for (const over of overTarget) {
         const overShifts = [...over.constraint.assignedShifts];
-        
+
         for (let i = overShifts.length - 1; i >= 0 && over.excess > 0; i--) {
           const { day, shiftCode } = overShifts[i];
-          
+
           // 嘗試找一個 underTarget 的護理師來替換
           for (const under of underTarget) {
             if (under.deficit <= 0) continue;
-            
+
             const underConstraint = under.constraint;
-            
+
             // 檢查 under 是否可以在這天這個班別工作
             if (underConstraint.leaveDates.has(day)) continue;
             if (!canTakeShift(underConstraint, shiftCode)) continue;
-            
+
             // 檢查 under 是否已排班這天
             const alreadyScheduled = underConstraint.assignedShifts.some(s => s.day === day);
             if (alreadyScheduled) continue;
-            
+
             // 檢查 under 是否在此班別清單中
-            const canWorkThisShift = 
+            const canWorkThisShift =
               (shiftAssignments.D?.includes(underConstraint.nurseId) && shiftCode === 'D') ||
               (shiftAssignments.E?.includes(underConstraint.nurseId) && shiftCode === 'E') ||
               (shiftAssignments.N?.includes(underConstraint.nurseId) && shiftCode === 'N');
             if (!canWorkThisShift) continue;
-            
+
             const date = new Date(year, month, day, 12, 0, 0);
             const shiftType = shiftTypeMap.get(shiftCode);
             if (!shiftType) continue;
-            
+
             // 檢查24小時間隔
             const has24HourGap = await check24HourInterval(underConstraint, date, shiftCode);
             if (!has24HourGap) continue;
-            
+
             // 驗證勞基法
             const validation = await validateSchedule(underConstraint.nurseId, date, shiftType.id);
             if (!validation.valid) continue;
-            
+
             // 找到要刪除的 over 的班表
             const overSchedule = await prisma.schedule.findFirst({
               where: {
@@ -468,15 +470,15 @@ export async function POST(request: NextRequest) {
                 shiftType: { code: shiftCode },
               },
             });
-            
+
             if (!overSchedule) continue;
-            
+
             try {
               // 刪除 over 的班表
               await prisma.schedule.delete({
                 where: { id: overSchedule.id },
               });
-              
+
               // 建立 under 的班表
               await prisma.schedule.create({
                 data: {
@@ -489,20 +491,20 @@ export async function POST(request: NextRequest) {
                   notes: 'REDISTRIBUTED',
                 },
               });
-              
+
               // 更新追蹤
               nurseShiftCounts[over.constraint.nurseId]--;
               nurseShiftCounts[underConstraint.nurseId]++;
-              
+
               // 更新 assignedShifts
               over.constraint.assignedShifts = over.constraint.assignedShifts.filter(
                 s => !(s.day === day && s.shiftCode === shiftCode)
               );
               underConstraint.assignedShifts.push({ day, shiftCode });
-              
+
               over.excess--;
               under.deficit--;
-              
+
               break; // 這個班次已轉移，換下一個
             } catch (error) {
               console.error(`Error in redistribution:`, error);
@@ -519,7 +521,7 @@ export async function POST(request: NextRequest) {
     const nurseStats: any[] = [];
     for (const constraint of nurseConstraints.values()) {
       const currentDays = nurseShiftCounts[constraint.nurseId];
-      
+
       nurseStats.push({
         nurseId: constraint.nurseId,
         nurseName: constraint.nurse.name,
@@ -530,8 +532,8 @@ export async function POST(request: NextRequest) {
         minDays: constraint.minDays,
         maxPossibleDays: constraint.maxPossibleDays,
         leaveDays: constraint.leaveDates.size,
-        status: currentDays < constraint.minDays ? 'BELOW_MIN' : 
-                currentDays > constraint.targetDays ? 'OVER_TARGET' : 'OK',
+        status: currentDays < constraint.minDays ? 'BELOW_MIN' :
+          currentDays > constraint.targetDays ? 'OVER_TARGET' : 'OK',
         shiftDetails: constraint.assignedShifts,
       });
     }
@@ -541,7 +543,7 @@ export async function POST(request: NextRequest) {
 
     // 計算統計
     const totalNursesUsed = Object.values(nurseShiftCounts).filter(count => count > 0).length;
-    const avgShiftsPerNurse = totalNursesUsed > 0 ? 
+    const avgShiftsPerNurse = totalNursesUsed > 0 ?
       Object.values(nurseShiftCounts).reduce((sum, count) => sum + count, 0) / totalNursesUsed : 0;
 
     // 檢查天數不足的護理師
@@ -570,8 +572,17 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in three-shift v2 scheduling:', error);
+    // 詳細記錄錯誤堆疊，方便除錯
+    if (error instanceof Error) {
+      console.error('Stack trace:', error.stack);
+    }
+
     return NextResponse.json(
-      { success: false, error: 'Three-shift scheduling failed' },
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Three-shift scheduling failed due to an unknown error',
+        details: error instanceof Error ? error.stack : String(error)
+      },
       { status: 500 }
     );
   }

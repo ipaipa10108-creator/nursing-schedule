@@ -5,7 +5,7 @@ export async function GET() {
   try {
     // Get the first ward (assuming single ward for now)
     let ward = await prisma.ward.findFirst();
-    
+
     // If no ward exists, create default one
     if (!ward) {
       ward = await prisma.ward.create({
@@ -16,13 +16,16 @@ export async function GET() {
           minNursesDay: 7,
           minNursesEvening: 7,
           minNursesNight: 4,
+          maxNursesDay: 15,
+          maxNursesEvening: 12,
+          maxNursesNight: 10,
           minWorkingDays: 20,
           maxWorkingDays: 26,
           targetWorkingDays: 22,
         },
       });
     }
-    
+
     return NextResponse.json({
       success: true,
       ward: {
@@ -33,6 +36,9 @@ export async function GET() {
         minNursesDay: ward.minNursesDay,
         minNursesEvening: ward.minNursesEvening,
         minNursesNight: ward.minNursesNight,
+        maxNursesDay: ward.maxNursesDay,
+        maxNursesEvening: ward.maxNursesEvening,
+        maxNursesNight: ward.maxNursesNight,
         minWorkingDays: ward.minWorkingDays,
         maxWorkingDays: ward.maxWorkingDays,
         targetWorkingDays: ward.targetWorkingDays,
@@ -50,8 +56,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, totalBeds, nursePatientRatio, minNursesDay, minNursesEvening, minNursesNight, minWorkingDays, maxWorkingDays, targetWorkingDays } = body;
-    
+    const {
+      name, totalBeds, nursePatientRatio,
+      minNursesDay, minNursesEvening, minNursesNight,
+      maxNursesDay, maxNursesEvening, maxNursesNight,
+      minWorkingDays, maxWorkingDays, targetWorkingDays
+    } = body;
+
     // Validation
     if (!name || !totalBeds || !nursePatientRatio) {
       return NextResponse.json(
@@ -59,7 +70,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     // Validate working days constraints
     if (minWorkingDays !== undefined && (minWorkingDays < 1 || minWorkingDays > 31)) {
       return NextResponse.json(
@@ -67,83 +78,99 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     if (maxWorkingDays !== undefined && (maxWorkingDays < 1 || maxWorkingDays > 31)) {
       return NextResponse.json(
         { success: false, error: '最高工作天數必須在 1-31 之間' },
         { status: 400 }
       );
     }
-    
+
     if (targetWorkingDays !== undefined && (targetWorkingDays < 1 || targetWorkingDays > 31)) {
       return NextResponse.json(
         { success: false, error: '目標工作天數必須在 1-31 之間' },
         { status: 400 }
       );
     }
-    
+
     if (minWorkingDays && maxWorkingDays && minWorkingDays > maxWorkingDays) {
       return NextResponse.json(
         { success: false, error: '最低工作天數不能大於最高工作天數' },
         { status: 400 }
       );
     }
-    
+
     if (totalBeds < 1 || totalBeds > 200) {
       return NextResponse.json(
         { success: false, error: '病床數必須在 1-200 之間' },
         { status: 400 }
       );
     }
-    
+
     if (nursePatientRatio < 1 || nursePatientRatio > 20) {
       return NextResponse.json(
         { success: false, error: '護病比必須在 1-20 之間' },
         { status: 400 }
       );
     }
-    
+
     // Validate shift-specific nurse requirements
     if (minNursesDay !== undefined && (minNursesDay < 1 || minNursesDay > 50)) {
       return NextResponse.json(
-        { success: false, error: '日班護理師數必須在 1-50 之間' },
+        { success: false, error: '日班最低護理師數必須在 1-50 之間' },
         { status: 400 }
       );
     }
-    
+
     if (minNursesEvening !== undefined && (minNursesEvening < 1 || minNursesEvening > 50)) {
       return NextResponse.json(
-        { success: false, error: '小夜班護理師數必須在 1-50 之間' },
+        { success: false, error: '小夜班最低護理師數必須在 1-50 之間' },
         { status: 400 }
       );
     }
-    
+
     if (minNursesNight !== undefined && (minNursesNight < 1 || minNursesNight > 50)) {
       return NextResponse.json(
-        { success: false, error: '大夜班護理師數必須在 1-50 之間' },
+        { success: false, error: '大夜班最低護理師數必須在 1-50 之間' },
         { status: 400 }
       );
     }
-    
+
+    if (maxNursesDay !== undefined && (maxNursesDay < 1 || maxNursesDay > 50)) {
+      return NextResponse.json({ success: false, error: '日班最高護理師數必須在 1-50 之間' }, { status: 400 });
+    }
+
+    if (maxNursesEvening !== undefined && (maxNursesEvening < 1 || maxNursesEvening > 50)) {
+      return NextResponse.json({ success: false, error: '小夜班最高護理師數必須在 1-50 之間' }, { status: 400 });
+    }
+
+    if (maxNursesNight !== undefined && (maxNursesNight < 1 || maxNursesNight > 50)) {
+      return NextResponse.json({ success: false, error: '大夜班最高護理師數必須在 1-50 之間' }, { status: 400 });
+    }
+
     // Get or create ward
     let ward = await prisma.ward.findFirst();
-    
+
     const updateData: any = {
       name,
       totalBeds,
       nursePatientRatio,
     };
-    
+
     // Only update shift-specific fields if provided
     if (minNursesDay !== undefined) updateData.minNursesDay = minNursesDay;
     if (minNursesEvening !== undefined) updateData.minNursesEvening = minNursesEvening;
     if (minNursesNight !== undefined) updateData.minNursesNight = minNursesNight;
-    
+
+    if (maxNursesDay !== undefined) updateData.maxNursesDay = maxNursesDay;
+    if (maxNursesEvening !== undefined) updateData.maxNursesEvening = maxNursesEvening;
+    if (maxNursesNight !== undefined) updateData.maxNursesNight = maxNursesNight;
+
     // Only update working days constraints if provided
     if (minWorkingDays !== undefined) updateData.minWorkingDays = minWorkingDays;
     if (maxWorkingDays !== undefined) updateData.maxWorkingDays = maxWorkingDays;
     if (targetWorkingDays !== undefined) updateData.targetWorkingDays = targetWorkingDays;
-    
+
     if (ward) {
       // Update existing ward
       ward = await prisma.ward.update({
@@ -158,13 +185,16 @@ export async function POST(request: NextRequest) {
           minNursesDay: minNursesDay || 7,
           minNursesEvening: minNursesEvening || 7,
           minNursesNight: minNursesNight || 4,
+          maxNursesDay: maxNursesDay || 15,
+          maxNursesEvening: maxNursesEvening || 12,
+          maxNursesNight: maxNursesNight || 10,
           minWorkingDays: minWorkingDays || 20,
           maxWorkingDays: maxWorkingDays || 26,
           targetWorkingDays: targetWorkingDays || 22,
         },
       });
     }
-    
+
     return NextResponse.json({
       success: true,
       ward: {
@@ -175,6 +205,9 @@ export async function POST(request: NextRequest) {
         minNursesDay: ward.minNursesDay,
         minNursesEvening: ward.minNursesEvening,
         minNursesNight: ward.minNursesNight,
+        maxNursesDay: ward.maxNursesDay,
+        maxNursesEvening: ward.maxNursesEvening,
+        maxNursesNight: ward.maxNursesNight,
         minWorkingDays: ward.minWorkingDays,
         maxWorkingDays: ward.maxWorkingDays,
         targetWorkingDays: ward.targetWorkingDays,
