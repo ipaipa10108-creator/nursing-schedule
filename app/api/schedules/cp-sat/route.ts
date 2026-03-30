@@ -85,41 +85,71 @@ export async function POST(request: NextRequest) {
         // 4. 呼叫 Python Solver
         const scriptPath = path.join(process.cwd(), 'solver', 'schedule_optimizer.py');
 
-        const runSolver = () => new Promise<any>((resolve, reject) => {
-            // 使用 uv run 確保環境正確
-            const pythonProcess = spawn('uv', ['run', 'python', scriptPath], {
-                cwd: process.cwd(),
-                env: process.env
-            });
-
-            let stdoutData = '';
-            let stderrData = '';
-
-            pythonProcess.stdout.on('data', (data: Buffer) => {
-                stdoutData += data.toString();
-            });
-
-            pythonProcess.stderr.on('data', (data: Buffer) => {
-                stderrData += data.toString();
-            });
-
-            pythonProcess.on('close', (code: number) => {
-                if (code !== 0) {
-                    reject(new Error(`Solver failed with code ${code}: ${stderrData}`));
-                } else {
-                    try {
-                        const result = JSON.parse(stdoutData.trim());
-                        resolve(result);
-                    } catch (e) {
-                        console.error('Solver output parsing failed. Raw output:', stdoutData); // Important for debugging
-                        reject(new Error(`Invalid JSON output from solver. Raw output length: ${stdoutData.length}. Check server logs for details.`));
+        const runSolver = async () => {
+            // 雲端環境優先使用外部 SOLVER_API_URL (例如部署在 Hugging Face 或 Render 的 API)
+            const solverApiUrl = process.env.SOLVER_API_URL;
+            if (solverApiUrl) {
+                console.log(`Forwarding solving task to external solver: ${solverApiUrl}`);
+                try {
+                    const res = await fetch(solverApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(inputData),
+                    });
+                    if (!res.ok) {
+                        const errText = await res.text();
+                        throw new Error(`External Solver API failed (${res.status}): ${errText.substring(0, 150)}`);
                     }
+                    return await res.json();
+                } catch (externalErr: any) {
+                    console.error('External Solver Error:', externalErr);
+                    throw new Error(`外部 Solver 呼叫失敗: ${externalErr.message}`);
                 }
-            });
+            }
 
-            pythonProcess.stdin.write(JSON.stringify(inputData));
-            pythonProcess.stdin.end();
-        });
+            // 降級使用本地 uv 執行 (本地開發環境)
+            return new Promise<any>((resolve, reject) => {
+                // 使用 uv run 確保環境正確
+                const pythonProcess = spawn('uv', ['run', 'python', scriptPath], {
+                    cwd: process.cwd(),
+                    env: process.env
+                });
+
+                let stdoutData = '';
+                let stderrData = '';
+
+                pythonProcess.stdout.on('data', (data: Buffer) => {
+                    stdoutData += data.toString();
+                });
+
+                pythonProcess.stderr.on('data', (data: Buffer) => {
+                    stderrData += data.toString();
+                });
+
+                // 新增錯誤處理，避免因缺少 uv 導致 Node.js process crash (發生於 Vercel)
+                pythonProcess.on('error', (err) => {
+                    console.error('Failed to spawn python/uv:', err);
+                    reject(new Error(`無法啟動本地 Python solver (您的伺服器缺少 'uv' 工具，請設定 SOLVER_API_URL 變數): ${err.message}`));
+                });
+
+                pythonProcess.on('close', (code: number) => {
+                    if (code !== 0) {
+                        reject(new Error(`Solver failed with code ${code}: ${stderrData}`));
+                    } else {
+                        try {
+                            const result = JSON.parse(stdoutData.trim());
+                            resolve(result);
+                        } catch (e) {
+                            console.error('Solver output parsing failed. Raw output:', stdoutData);
+                            reject(new Error(`Invalid JSON output from solver. Raw output length: ${stdoutData.length}. Check server logs for details.`));
+                        }
+                    }
+                });
+
+                pythonProcess.stdin.write(JSON.stringify(inputData));
+                pythonProcess.stdin.end();
+            });
+        };
 
         const result = await runSolver();
 
