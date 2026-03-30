@@ -11,14 +11,14 @@ RUN pip install uv
 
 WORKDIR /app
 
-# 先複製依賴設定
-COPY pyproject.toml uv.lock ./
-
-# 安裝依賴 (使用 --system 讓全域都可以使用套件)
-RUN uv sync --system
-
-# 複製專案代碼 (排班演算法主要在 solver 內)
+# 複製專案代碼
 COPY . /app/
+
+# 安裝依賴 (uv sync 預設會建立並安裝到 .venv)
+RUN uv sync --frozen
+
+# 將虛擬環境加入系統 PATH，取代原本的 system-wide 安裝
+ENV PATH="/app/.venv/bin:$PATH"
 
 # 設定環境變數
 ENV PYTHONUNBUFFERED=1
