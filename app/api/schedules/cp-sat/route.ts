@@ -4,6 +4,14 @@ import { prisma } from '@/lib/db';
 import { spawn } from 'child_process';
 import path from 'path';
 
+// 臨時 debug endpoint - 確認環境變數是否正確載入
+export async function GET() {
+    return NextResponse.json({
+        SOLVER_API_URL: process.env.SOLVER_API_URL ?? '(未設定)',
+        NODE_ENV: process.env.NODE_ENV,
+    });
+}
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
