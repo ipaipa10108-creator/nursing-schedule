@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 import { spawn } from 'child_process';
 import path from 'path';
 
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
                 });
 
                 // 新增錯誤處理，避免因缺少 uv 導致 Node.js process crash (發生於 Vercel)
-                pythonProcess.on('error', (err) => {
+                pythonProcess.on('error', (err: NodeJS.ErrnoException) => {
                     console.error('Failed to spawn python/uv:', err);
                     reject(new Error(`無法啟動本地 Python solver (您的伺服器缺少 'uv' 工具，請設定 SOLVER_API_URL 變數): ${err.message}`));
                 });
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
 
         // 5. 儲存結果與資料庫
         if (result.success && Array.isArray(result.schedules) && result.schedules.length > 0) {
-            await prisma.$transaction(async (tx) => {
+            await prisma.$transaction(async (tx: TxClient) => {
                 // (A) 清除該月份已存在的排班
                 const startDate = new Date(year, month, 1);
                 const endDate = new Date(year, month + 1, 0, 23, 59, 59);
