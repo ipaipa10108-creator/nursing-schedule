@@ -274,23 +274,9 @@ export default function OptimizationScheduler({
       const result = await response.json();
 
       if (result.success) {
-        alert(`最佳化完成！\n狀態: ${result.status}\n已產生 ${result.schedules.length} 筆排班資料`);
-        if (result.schedules && result.schedules.length > 0) {
-          // Bulk save the results
-          const saveRes = await fetch('/api/schedules/bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ schedules: result.schedules })
-          });
-
-          if (saveRes.ok) {
-            onScheduleCreated();
-            alert(`已成功排班！共產生 ${result.schedules.length} 筆班表。`);
-          } else {
-            console.error("Bulk save failed");
-            alert("排班成功，但儲存失敗，請檢查後端日誌。");
-          }
-        }
+        // cp-sat API 後端已自行寫入資料庫，直接更新前端狀態
+        onScheduleCreated();
+        alert(`已成功排班！\n狀態: ${result.status}\n共產生 ${result.schedules?.length ?? 0} 筆班表。`);
       } else {
         alert(`運算失敗: ${result.error}`);
       }
