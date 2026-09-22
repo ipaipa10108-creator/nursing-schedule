@@ -9,5 +9,5 @@ dependencies = [
     "pandas>=2.2.0",
 ]
 
-[tool.uv]
+[tool.ruff]
 line-length = 120
