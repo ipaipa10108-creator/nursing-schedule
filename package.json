@@ -9,8 +9,7 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "db:migrate": "prisma migrate deploy",
-    "preinstall": "npx only-allow pnpm"
+    "db:migrate": "prisma migrate deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -52,10 +51,8 @@
   "engines": {
     "node": ">=22.23.4"
   },
-  "pnpm": {
-    "overrides": {
-      "zod": ">=4.6.6"
-    }
+  "overrides": {
+    "zod": ">=4.6.6"
   },
   "packageManager": "pnpm@10.33.0"
 }
